@@ -121,6 +121,13 @@
   .bar-row .track { height: 14px; }
   .bar-row .fill { height: 100%; min-width: 2px; background: var(--bar); border-radius: 0 4px 4px 0; }
   .bar-row .amount { text-align: right; font-variant-numeric: tabular-nums; }
+  .cols { display: flex; align-items: flex-end; gap: 6px; height: 190px; padding-top: 20px; border-bottom: 1px solid var(--border); margin-top: 12px; }
+  .col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-radius: 6px 6px 0 0; }
+  .col:hover, .col:focus-visible { background: var(--info-soft); outline: none; }
+  .col .fill { width: min(44px, 70%); background: var(--bar); border-radius: 4px 4px 0 0; }
+  .col .val { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .col-labels { display: flex; gap: 6px; margin-top: 6px; }
+  .col-labels span { flex: 1; min-width: 0; text-align: center; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: 280px; }
   .tip b { display: block; margin-bottom: 2px; }
   th.sortable { cursor: pointer; user-select: none; }
@@ -211,6 +218,45 @@
     <h2>Spend by cohort</h2>
     <p class="sub" id="uByCohortSub" style="margin: 0;"></p>
     <div class="bars" id="uByCohort"></div>
+  </section>
+
+  <section class="card">
+    <div class="row between">
+      <div>
+        <h2>Monthly spend</h2>
+        <p class="sub" id="tSub" style="margin: 0;">From OpenRouter's analytics, by calendar month (UTC).</p>
+      </div>
+      <div class="row">
+        <select id="tMonths" aria-label="Months to show" class="noprint">
+          <option value="3">Last 3 months</option>
+          <option value="6" selected>Last 6 months</option>
+          <option value="12">Last 12 months</option>
+        </select>
+        <button class="btn small noprint" id="tMonthlyCsv">Download CSV</button>
+      </div>
+    </div>
+    <div id="tMsg"></div>
+    <div id="tMonthly"></div>
+    <div class="tablewrap" style="margin-top: 14px;"><table id="tMonthlyTable"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="row between">
+      <div>
+        <h2>Spend by AI model</h2>
+        <p class="sub" id="tModelsSub" style="margin: 0;"></p>
+      </div>
+      <button class="btn small noprint" id="tModelsCsv">Download CSV</button>
+    </div>
+    <div class="bars" id="tModels"></div>
+  </section>
+
+  <section class="card">
+    <div class="row between" style="margin-bottom: 10px;">
+      <h2>Monthly spend by cohort</h2>
+      <button class="btn small noprint" id="tCohortsCsv">Download CSV</button>
+    </div>
+    <div class="tablewrap"><table id="tCohorts"></table></div>
   </section>
 
   <section class="card">
@@ -664,7 +710,7 @@ function downloadCsv() {
 
 const NEAR_LIMIT = 0.9;      // share of the limit that counts as "near limit"
 const NOT_USED_DAYS = 7;     // a key unused this long after creation is flagged
-const usage = { rows: null, fetchedAt: null, sort: { cohorts: ['spend', -1], attention: ['pctUsed', -1], learners: ['usage', -1] } };
+const usage = { rows: null, fetchedAt: null, sort: { cohorts: ['spend', -1], attention: ['pctUsed', -1], learners: ['usage', -1], months: ['month', 1] } };
 
 const money = (n) => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // Rounded down, so 99.8% of a limit doesn't read as 100%.
@@ -852,14 +898,149 @@ function renderUsage() {
   $('uFilterSummary').textContent = `Program: ${optLabel('uProgram', 'All')} · Region: ${optLabel('uRegion', 'All')} · `
     + `Cohort: ${optLabel('uCohort', 'All')}${f.q ? ` · Search: ${f.q}` : ''}${f.disabled ? ' · including disabled keys' : ''}`
     + ` · Data as of ${new Date(usage.fetchedAt).toLocaleString('en-GB')}`;
+  renderTrends();
+}
+
+// ---------- Trends (monthly and per-model, from /api/trends) ----------
+// OpenRouter's analytics report keys by name, so rows are joined to the key list by program + key name
+// to get region, cohort and email, and to apply the same filters as the rest of the tab.
+
+const trends = { data: null, loading: false };
+const compact = (n) => (n || 0).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+const monthName = (ym) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const monthShort = (ym) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+
+function trendMeta(program, keyName) {
+  if (!trends.byName) {
+    trends.byName = new Map((usage.rows || []).map((r) => [`${r.program}|${r.name}`, r]));
+  }
+  return trends.byName.get(`${program}|${keyName}`)
+    || { program, programName: programLabel(program), region: 'Other', cohort: '(other keys)', email: '', name: keyName, disabled: false };
+}
+
+function matchesFilters(r, f) {
+  return (f.disabled || !r.disabled) && (!f.p || r.program === f.p) && (!f.r || r.region === f.r)
+    && (!f.c || r.cohort === f.c) && (!f.q || r.email.includes(f.q) || r.name.toLowerCase().includes(f.q));
+}
+
+const MONTH_COLS = [
+  { key: 'month', label: 'Month', html: (r) => esc(monthName(r.month)) },
+  { key: 'cost', kind: 'money', label: 'Spend', num: true, html: (r) => esc(money(r.cost)) },
+  { key: 'requests', label: 'Requests', num: true, html: (r) => esc(r.requests.toLocaleString('en-US')) },
+  { key: 'tokens', label: 'Tokens', num: true, html: (r) => esc(compact(r.tokens)) },
+  { key: 'learners', label: 'Active learners', num: true },
+  { key: 'perLearner', kind: 'money', label: 'Spend per active learner', num: true, html: (r) => esc(money(r.perLearner)) },
+];
+const MODEL_COLS = [
+  { key: 'model', label: 'Model' },
+  { key: 'cost', kind: 'money', label: 'Spend' },
+  { key: 'share', kind: 'pct', label: '% of spend' },
+  { key: 'requests', label: 'Requests' },
+  { key: 'tokens', label: 'Tokens' },
+  { key: 'learners', label: 'Learners who used it' },
+];
+const tShown = { months: [], models: [], cohortCols: [], cohorts: [] };
+
+function renderTrends() {
+  const d = trends.data;
+  if (!d || !usage.rows) return;
+  const f = usageFilters();
+  const monthly = d.monthly.map((r) => ({ ...r, meta: trendMeta(r.program, r.key) })).filter((r) => matchesFilters(r.meta, f));
+  const models = d.models.map((r) => ({ ...r, meta: trendMeta(r.program, r.key) })).filter((r) => matchesFilters(r.meta, f));
+  $('tSub').textContent = `From OpenRouter's analytics, by calendar month (UTC), ${monthName(d.months[0])} to ${monthName(d.months[d.months.length - 1])}. `
+    + 'The current month is so far.';
+
+  // Monthly totals, one column per month (empty months included).
+  const byMonth = new Map(d.months.map((m) => [m, { month: m, cost: 0, requests: 0, tokens: 0, keys: new Set() }]));
+  for (const r of monthly) {
+    const m = byMonth.get(r.month);
+    if (!m) continue;
+    m.cost += r.cost; m.requests += r.requests; m.tokens += r.tokens;
+    if (r.requests > 0) m.keys.add(`${r.program}|${r.key}`);
+  }
+  const months = [...byMonth.values()].map((m) => ({ ...m, learners: m.keys.size, perLearner: m.keys.size ? m.cost / m.keys.size : 0 }));
+  const max = Math.max(0, ...months.map((m) => m.cost));
+  const maxIndex = months.findIndex((m) => m.cost === max);
+  if (max === 0) {
+    $('tMonthly').innerHTML = '<div class="empty">No usage recorded in this period yet. Figures appear here once learners use their keys.</div>';
+  } else {
+    // Direct labels only on the highest month and the latest month; the rest are in the tooltip and table.
+    $('tMonthly').innerHTML = `<div class="cols">${months.map((m, i) => `
+      <div class="col" tabindex="0" data-tip="${esc(`${monthName(m.month)}|Spend ${money(m.cost)}|${m.requests.toLocaleString('en-US')} requests · ${compact(m.tokens)} tokens|${m.learners} active learners · ${money(m.perLearner)} each`)}">
+        ${i === maxIndex || i === months.length - 1 ? `<span class="val">${esc(money(m.cost))}</span>` : ''}
+        <span class="fill" style="height:${m.cost > 0 ? Math.max((m.cost / max) * 150, 2) : 0}px"></span>
+      </div>`).join('')}</div>
+      <div class="col-labels">${months.map((m) => `<span title="${esc(monthName(m.month))}">${esc(monthShort(m.month))}</span>`).join('')}</div>`;
+  }
+  tShown.months = renderTable('tMonthlyTable', 'months', MONTH_COLS, months, 'No months.');
+
+  // Models: top 10, the rest folded into "Other models".
+  const byModel = new Map();
+  for (const r of models) {
+    if (!byModel.has(r.model)) byModel.set(r.model, { model: r.model, cost: 0, requests: 0, tokens: 0, keys: new Set() });
+    const g = byModel.get(r.model);
+    g.cost += r.cost; g.requests += r.requests; g.tokens += r.tokens;
+    if (r.requests > 0) g.keys.add(`${r.program}|${r.key}`);
+  }
+  const totalCost = [...byModel.values()].reduce((s, g) => s + g.cost, 0);
+  const sortedModels = [...byModel.values()].sort((a, b) => b.cost - a.cost)
+    .map((g) => ({ ...g, learners: g.keys.size, share: totalCost ? g.cost / totalCost : null }));
+  const TOP = 10;
+  const shownModels = sortedModels.slice(0, TOP);
+  const rest = sortedModels.slice(TOP);
+  if (rest.length) {
+    const keys = new Set(rest.flatMap((g) => [...g.keys]));
+    const cost = rest.reduce((s, g) => s + g.cost, 0);
+    shownModels.push({ model: `Other models (${rest.length})`, cost, requests: rest.reduce((s, g) => s + g.requests, 0),
+      tokens: rest.reduce((s, g) => s + g.tokens, 0), learners: keys.size, share: totalCost ? cost / totalCost : null });
+  }
+  $('tModelsSub').textContent = sortedModels.length ? `${sortedModels.length} model(s) used over the period.` : '';
+  renderBars('tModels', shownModels.map((g) => ({
+    label: g.model, value: g.cost,
+    tip: `${g.model}|Spend ${money(g.cost)} (${pct(g.share)} of total)|${g.requests.toLocaleString('en-US')} requests · ${compact(g.tokens)} tokens|${g.learners} learner(s) used it`,
+  })), 'No model usage recorded in this period yet.');
+  tShown.models = sortedModels;
+
+  // Cohort x month table.
+  const cohorts = new Map();
+  for (const r of monthly) {
+    const k = `${r.program}|${r.meta.region}|${r.meta.cohort}`;
+    if (!cohorts.has(k)) cohorts.set(k, { programName: r.meta.programName || programLabel(r.program), region: r.meta.region, cohort: r.meta.cohort, total: 0 });
+    const c = cohorts.get(k);
+    c[r.month] = (c[r.month] || 0) + r.cost;
+    c.total += r.cost;
+  }
+  const cohortCols = [
+    { key: 'programName', label: 'Program' }, { key: 'region', label: 'Region' }, { key: 'cohort', label: 'Cohort' },
+    ...d.months.map((m) => ({ key: m, kind: 'money', label: monthName(m), num: true, value: (r) => r[m] || 0, html: (r) => esc(r[m] ? money(r[m]) : '–') })),
+    { key: 'total', kind: 'money', label: 'Total', num: true, html: (r) => `<b>${esc(money(r.total))}</b>` },
+  ];
+  if (!usage.sort.tcohorts || !cohortCols.some((c) => c.key === usage.sort.tcohorts[0])) usage.sort.tcohorts = ['total', -1];
+  tShown.cohortCols = cohortCols;
+  tShown.cohorts = renderTable('tCohorts', 'tcohorts', cohortCols, [...cohorts.values()], 'No usage recorded in this period yet.');
+}
+
+async function loadTrends() {
+  const months = $('tMonths').value;
+  $('tMsg').innerHTML = '<div class="msg info">Loading monthly figures from OpenRouter…</div>';
+  try {
+    trends.data = await (await api(`/api/trends?months=${encodeURIComponent(months)}`)).json();
+    $('tMsg').innerHTML = trends.data.warnings.length
+      ? `<div class="msg warn">Some figures could not be loaded:\n${esc(trends.data.warnings.join('\n'))}</div>` : '';
+    renderTrends();
+  } catch (err) {
+    $('tMsg').innerHTML = `<div class="msg bad">${esc(err.message)}</div>`;
+  }
 }
 
 async function loadUsage() {
   $('uMsg').innerHTML = '<div class="msg info">Loading usage from OpenRouter…</div>';
   $('uRefresh').disabled = true;
+  const trendsLoaded = loadTrends(); // in parallel; drawn once the key list is in
   try {
     const data = await (await api('/api/usage')).json();
     usage.rows = data.rows.map(enrich);
+    trends.byName = null;
     usage.fetchedAt = data.fetchedAt;
     const currentProgram = $('uProgram').value;
     $('uProgram').innerHTML = '<option value="">All programs</option>' + state.config.programs
@@ -875,6 +1056,7 @@ async function loadUsage() {
   } finally {
     $('uRefresh').disabled = false;
   }
+  await trendsLoaded;
 }
 
 function csvText(cols, rows) {
@@ -922,6 +1104,10 @@ function setupUsage() {
   $('uCohortsCsv').onclick = () => saveCsv(`usage-by-cohort-${stamp()}.csv`, csvText(COHORT_COLS, shown.cohorts));
   $('uAttentionCsv').onclick = () => saveCsv(`usage-needs-attention-${stamp()}.csv`, csvText(ATTENTION_COLS, shown.attention));
   $('uLearnersCsv').onclick = () => saveCsv(`usage-by-learner-${stamp()}.csv`, csvText(LEARNER_COLS, shown.learners));
+  $('tMonths').addEventListener('change', loadTrends);
+  $('tMonthlyCsv').onclick = () => saveCsv(`spend-by-month-${stamp()}.csv`, csvText(MONTH_COLS, tShown.months));
+  $('tModelsCsv').onclick = () => saveCsv(`spend-by-model-${stamp()}.csv`, csvText(MODEL_COLS, tShown.models));
+  $('tCohortsCsv').onclick = () => saveCsv(`spend-by-cohort-and-month-${stamp()}.csv`, csvText(tShown.cohortCols, tShown.cohorts));
 
   $('usageView').addEventListener('click', (e) => {
     const th = e.target.closest('th[data-sort]');
@@ -943,12 +1129,12 @@ function setupUsage() {
     tip.style.top = `${Math.max(8, Math.min(y + 14, innerHeight - h - 8))}px`;
   };
   $('usageView').addEventListener('mousemove', (e) => {
-    const row = e.target.closest('.bar-row');
+    const row = e.target.closest('[data-tip]');
     if (row) showTip(row, e.clientX, e.clientY); else tip.classList.add('hidden');
   });
   $('usageView').addEventListener('mouseleave', () => tip.classList.add('hidden'));
   $('usageView').addEventListener('focusin', (e) => {
-    const row = e.target.closest('.bar-row');
+    const row = e.target.closest('[data-tip]');
     if (!row) return;
     const r = row.getBoundingClientRect();
     showTip(row, r.left + r.width / 2, r.top);

@@ -18,6 +18,9 @@ function createMockServer() {
     createBodies: [],
     issuedKeys: [],
     tokenRequests: [],
+    analyticsQueries: [],
+    // Usage events for POST /analytics/query: { workspace_id, key (key name), model, month: 'YYYY-MM', cost, requests, tokens }
+    analytics: [],
     keys: [
       {
         hash: 'hash-existing', name: 'US-004-mid-oct-existing@test.com', limit: 2, limit_remaining: 0.15, disabled: false,
@@ -73,6 +76,33 @@ function createMockServer() {
         const ws = url.searchParams.get('workspace_id') || 'ws-default';
         const inWs = state.keys.filter((k) => k.workspace_id === ws);
         return send(res, 200, { data: inWs.slice(offset, offset + 100) });
+      }
+
+      // Groups state.analytics by the requested dimensions (+ month), like OpenRouter's analytics.
+      if (req.method === 'POST' && route === '/analytics/query') {
+        let body;
+        try { body = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: { message: 'Bad JSON' } }); }
+        state.analyticsQueries.push(body);
+        const { start, end } = body.time_range || {};
+        if ((Date.parse(end) - Date.parse(start)) / 864e5 > 367) return send(res, 400, { error: { message: 'time_range exceeds maximum of 367 days', code: 400 } });
+        if ((body.limit || 0) > 10000) return send(res, 400, { error: { message: 'limit: Too big: expected number to be <=10000', code: 400 } });
+        let events = state.analytics.filter((e) => e.month >= String(start).slice(0, 7) && e.month <= String(end).slice(0, 7));
+        for (const f of body.filters || []) {
+          if (f.field === 'workspace' && f.operator === 'eq') events = events.filter((e) => e.workspace_id === f.value);
+        }
+        const groups = new Map();
+        for (const e of events) {
+          const row = {};
+          if (body.granularity === 'month') row.date__month = `${e.month}-01`;
+          for (const d of body.dimensions || []) row[d] = d === 'api_key_id' ? e.key : d === 'workspace' ? (WORKSPACES.find((w) => w.id === e.workspace_id) || {}).name : e[d];
+          const k = JSON.stringify(row);
+          if (!groups.has(k)) groups.set(k, { ...row, total_usage: 0, request_count: 0, tokens_total: 0 });
+          const g = groups.get(k);
+          g.total_usage += e.cost; g.request_count += e.requests; g.tokens_total += e.tokens;
+        }
+        // Like the real API: counts come back as strings.
+        const rows = [...groups.values()].map((g) => ({ ...g, request_count: String(g.request_count), tokens_total: String(g.tokens_total) }));
+        return send(res, 200, { data: { data: rows, metadata: { query_time_ms: 1, row_count: rows.length, truncated: false } } });
       }
 
       if (req.method === 'POST' && route === '/keys') {

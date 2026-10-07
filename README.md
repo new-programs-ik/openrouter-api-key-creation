@@ -179,13 +179,18 @@ workspaces straight from OpenRouter (it never creates or changes anything) and s
 - **Cohorts table:** learners, active, spend, this month, average per active learner, budget and % used, per cohort.
 - **Needs attention:** keys at 90%+ of their limit, and keys not used 7 days after they were created.
 - **Learners table:** every key with spend, limit, remaining, % used and status.
+- **Monthly spend:** a chart and table of spend, requests, tokens and active learners per calendar month, for
+  the last 3, 6 or 12 months (OpenRouter keeps at most a year).
+- **Spend by AI model:** which models learners use, what each cost and how many learners used it.
+- **Monthly spend by cohort:** one row per cohort, one column per month, for slides.
 
 Filter by program, region, cohort or learner email; click a column heading to sort. **Download CSV** on each
 table gives an Excel file. **Print / Save as PDF** prints a clean report with the filters and date at the top
 (tick *Include learner list in PDF* to add the full learner table). Click **Refresh** for the latest figures.
 
-Notes: amounts are in USD. "This month" means the current calendar month in UTC; OpenRouter doesn't give
-spend for past months per key. Keys that weren't named by this tool are grouped as "(other keys)".
+Notes: amounts are in USD and months are calendar months in UTC (the current month is so far). The monthly and
+model figures come from OpenRouter's analytics and may lag a few minutes behind the key totals. Keys that weren't
+named by this tool are grouped as "(other keys)"; staff keys in OpenRouter's Default workspace are not included.
 
 ---
 

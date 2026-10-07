@@ -17,6 +17,7 @@ const { createClient, generateKeys } = require('../lib/openrouter');
 const { createFileStore, createBlobStore } = require('../lib/storage');
 const { createWebHandler } = require('../lib/webApp');
 const { parseKeyName, chooseSplits } = require('../lib/usage');
+const { monthRange } = require('../lib/trends');
 
 const MOCK_PORT = 8787;
 const WEB_PORT = 3917;
@@ -485,6 +486,54 @@ test('web: /api/usage lists every program\'s keys with spend, read-only, no secr
   assert.ok(mock.state.requests.slice(before).every((r) => r.method === 'GET'), 'usage must only read');
 });
 
+test('monthRange covers whole calendar months up to now, at most 12', () => {
+  const r = monthRange(3, new Date('2026-10-07T12:00:00Z'));
+  assert.deepStrictEqual(r.months, ['2026-08', '2026-09', '2026-10']);
+  assert.strictEqual(r.start, '2026-08-01T00:00:00Z');
+  assert.strictEqual(r.end, '2026-10-07T12:00:00Z');
+  assert.deepStrictEqual(monthRange(1, new Date('2026-01-15T00:00:00Z')).months, ['2026-01']);
+  const year = monthRange(99, new Date('2026-12-31T23:59:59Z'));
+  assert.strictEqual(year.months.length, 12, 'capped at 12 months');
+  assert.ok((Date.parse(year.end) - Date.parse(year.start)) / 864e5 <= 367, 'inside OpenRouter\'s 367-day limit');
+});
+
+test('web: /api/trends returns monthly and per-model spend for program workspaces only, read-only', async () => {
+  const { months } = monthRange(6);
+  const [m1, m2] = [months[4], months[5]];
+  mock.state.analytics = [
+    { workspace_id: 'ws-swe', key: 'US-004-mid-oct-existing@test.com', model: 'openai/gpt-4o', month: m1, cost: 1.5, requests: 30, tokens: 9000 },
+    { workspace_id: 'ws-swe', key: 'US-004-mid-oct-existing@test.com', model: 'openai/gpt-4o-mini', month: m2, cost: 0.25, requests: 70, tokens: 20000 },
+    { workspace_id: 'ws-em', key: 'someone made this by hand', model: 'openai/gpt-4o', month: m2, cost: 2, requests: 10, tokens: 5000 },
+    { workspace_id: 'ws-default', key: 'staff key', model: 'openai/gpt-5', month: m2, cost: 99, requests: 1, tokens: 1 },
+  ];
+  const before = mock.state.requests.length;
+  const queriesBefore = mock.state.analyticsQueries.length;
+  const res = await webFetch('/api/trends?months=6');
+  assert.strictEqual(res.status, 200);
+  const data = await res.json();
+  assert.deepStrictEqual(data.warnings, []);
+  assert.deepStrictEqual(data.months, months);
+
+  const swe = data.monthly.filter((r) => r.program === 'swe').sort((a, b) => a.month.localeCompare(b.month));
+  assert.deepStrictEqual(swe, [
+    { program: 'swe', key: 'US-004-mid-oct-existing@test.com', month: m1, cost: 1.5, requests: 30, tokens: 9000 },
+    { program: 'swe', key: 'US-004-mid-oct-existing@test.com', month: m2, cost: 0.25, requests: 70, tokens: 20000 },
+  ], 'counts come back from OpenRouter as strings and must be numbers');
+  assert.ok(!JSON.stringify(data).includes('staff key'), 'the Default workspace is not a program and must be left out');
+  assert.deepStrictEqual(data.models.filter((r) => r.program === 'em').map((r) => [r.model, r.cost]), [['openai/gpt-4o', 2]]);
+
+  const queries = mock.state.analyticsQueries.slice(queriesBefore);
+  assert.strictEqual(queries.length, 8, 'two queries per program');
+  for (const q of queries) {
+    assert.strictEqual(q.filters[0].field, 'workspace');
+    assert.ok(q.limit <= 10000);
+  }
+  const posts = mock.state.requests.slice(before).filter((r) => r.method === 'POST');
+  assert.ok(posts.every((r) => r.route === '/analytics/query'), 'trends must not create or change keys');
+
+  assert.strictEqual((await webFetch('/api/trends?months=99')).status, 200, 'months is capped, not an error');
+});
+
 test('web: the page script has no syntax errors and includes the Usage tab', async () => {
   const page = await (await fetch(webUrl('/'))).text();
   assert.match(page, /id="tabUsage"/);
@@ -598,7 +647,7 @@ test('auth: signed-out visitors get the sign-in page and no API access', async (
   const page = await (await fetch(`${authBase}/`)).text();
   assert.match(page, /Sign in with Google/);
   assert.doesNotMatch(page, /Create keys/);
-  for (const p of ['/api/config', '/api/keys', '/api/usage']) assert.strictEqual((await authApi(p)).status, 401, p);
+  for (const p of ['/api/config', '/api/keys', '/api/usage', '/api/trends']) assert.strictEqual((await authApi(p)).status, 401, p);
 });
 
 test('auth: /auth/login sends you to Google, company accounts only', async () => {
