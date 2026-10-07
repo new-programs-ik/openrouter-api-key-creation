@@ -1,19 +1,37 @@
 # OpenRouter Key Generator
 
 Creates one OpenRouter API key per learner from a list of email addresses, puts each key in the
-right workspace with a spending limit, and saves all keys to `generated_openrouter_keys.csv`.
+right workspace with a spending limit, and keeps a record of every key created.
 
-You can use it two ways:
+You can use it three ways:
 
-- **Web page** (easiest): pick the options, upload the list, click Generate.
-- **Command line**: the same thing in a terminal, answering questions.
+- **Online (main way):** https://openrouter-key-generator.vercel.app. Sign in with your
+  `@interviewkickstart.com` Google account, pick the options, upload the list, click Generate.
+  Nothing to install. Only people on the allowed list can get in (section 14).
+- **Web page on your own computer:** the same page, run with `npm run web` (section 6).
+- **Command line:** the same thing in a terminal, answering questions (section 7).
+
+A detailed guide is in `docs/OpenRouter-Key-Generator-Guide.docx`.
 
 Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerShell** and
 **macOS / Linux (Terminal)**. Use the one that matches the window you're typing in.
 
 ---
 
-## 1. One-time setup
+## Quick start (online)
+
+1. Open https://openrouter-key-generator.vercel.app and click **Sign in with Google**.
+2. Choose the **program**, **region** and type the **cohort** name (e.g. `mid-oct`).
+3. Keep the **$5** credit limit or pick another.
+4. Upload the learners CSV. Not sure of the format? Click **Download the template (dummy.csv)** on the page.
+5. Click **Preview**, check the key names, then **Generate** and keep the tab open until it says *Done*.
+6. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
+
+The rest of this file explains the details and how to run it on your own computer.
+
+---
+
+## 1. One-time setup (only for running on your computer)
 
 1. Install **Node.js 18 or newer** (the "LTS" version) from https://nodejs.org.
 2. Open a terminal **in this folder**:
@@ -46,12 +64,12 @@ Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerSh
 **One workspace per program.** Guardrails (allowed models, spend policy), presets and routing are set
 once on each workspace at openrouter.ai, and every learner key is created inside its program's workspace:
 
-| Program | Workspace (slug) |
-|---|---|
-| SWE | `agentic-ai-swe` |
-| PM / TPM | `agentic-ai-pm-tpm` |
-| EM | `agentic-ai-em` |
-| FDE Program | `fde-program` |
+| Program | Workspace (slug) | Default credit limit |
+|---|---|---|
+| SWE | `agentic-ai-swe` | $5 |
+| PM / TPM | `agentic-ai-pm-tpm` | $5 |
+| EM | `agentic-ai-em` | $5 |
+| FDE Program | `fde-program` | $5 |
 
 **There is no workspace per cohort.** A new cohort starts every month, and creating workspaces each time
 would mean setting up guardrails again and again. Instead, cohorts are told apart by the **key name**, so
@@ -90,7 +108,8 @@ The tool needs an OpenRouter **Management key**. A normal API key won't work.
 
 1. Go to https://openrouter.ai/settings/management-keys.
 2. Click **Create New Key**, give it a name (e.g. `key-generator`), and copy the key. It is only shown once.
-3. Paste it into `.env` as shown in section 1.
+3. Paste it into `.env` as shown in section 1 (on your computer) and/or into the Vercel setting
+   `OPENROUTER_MANAGEMENT_KEY` (online, section 14).
 
 One Management key covers **all workspaces**. When you choose a program, the tool looks up that program's
 workspace by its slug (the table in section 2) and creates the keys there.
@@ -115,11 +134,14 @@ priya.s@outlook.com
 - Use **one CSV per program** per run.
 - Blank rows are ignored. Invalid emails and repeated emails are reported (and logged) but don't stop the run.
 
-Save it as `learners.csv` in this folder (the web page can also upload a file from anywhere).
+On your computer you can also save it as `learners.csv` in this folder; the local page then offers
+*use learners.csv from the project folder*.
 
 ---
 
 ## 6. Creating keys with the web page
+
+Online, just open https://openrouter-key-generator.vercel.app and sign in. On your own computer:
 
 1. Start it:
 
@@ -136,15 +158,15 @@ Save it as `learners.csv` in this folder (the web page can also upload a file fr
    3. **Cohort**: type it, e.g. `mid-oct`. The page shows what the key names will look like.
    4. **Credit limit per key**: $1, $2, $5, $10, **Other** (type any amount) or **No limit**.
       The program's default ($5) is selected for you. Amounts above $100 are refused, to catch typos.
-   5. **Learners CSV**: choose or drop your file, or click *use learners.csv from the project folder*.
+   5. **Learners CSV**: choose or drop your file. **Download the template (dummy.csv)** gives you the format.
 3. Click **Preview**. You'll see every key name and whether it is **New**, **Already exists** or a **Problem**
    (bad or repeated email). Nothing is created yet.
 4. Click **Generate N keys** and confirm. Each row updates as it goes. Keep the tab open until it says *Done*.
-5. The **Generated keys** section lists every key in `generated_openrouter_keys.csv`. You can filter by program,
-   region or cohort, search by email, **Copy** a key, or **Download CSV** of what's shown.
+5. The **Generated keys** section lists every key created (online: from private storage; on your computer:
+   from `generated_openrouter_keys.csv`). You can filter by program, region or cohort, search by email,
+   **Copy** a key, or **Download CSV** of what's shown.
 
-Run this way, the page only works on your own computer. Nobody else on the network can open it.
-To share it with the team online, with Google sign-in, see section 14.
+Run on your computer, the page only works there. Nobody else on the network can open it.
 
 ---
 
@@ -175,8 +197,9 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`. These settings last until you clos
 
 ## 8. First-time test (do this once)
 
-1. Put **one** email in `learners.csv` (yours is fine).
-2. Run `npm run web`, choose SWE, US, cohort `test-run`, limit $1, and click **Preview**. Check the key name.
+1. Make a CSV with **one** email (yours is fine), e.g. from the dummy.csv template.
+2. Open the site (or `npm run web`), choose SWE, US, cohort `test-run`, limit $1, upload the CSV and click
+   **Preview**. Check the key name.
 3. Click **Generate 1 key**.
 4. Check the key works. Copy it from **Generated keys** and run:
 
@@ -194,12 +217,15 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`. These settings last until you clos
 ## 9. Every new cohort
 
 1. Prepare one CSV per program (SWE, PM/TPM, EM, FDE) with an `email id` column.
-2. Run `npm run web`.
+2. Open https://openrouter-key-generator.vercel.app (or run `npm run web`).
 3. For each program: choose the program, region and cohort name (e.g. `early-nov`), choose the limit,
    upload that program's CSV, **Preview**, then **Generate**.
-4. Check the summary. If anything failed, read `logs/errors.log`, fix the CSV and run again. Learners that
-   already have a key are skipped.
+4. Check the summary. If anything failed, read the message on the page (details: Vercel **Logs** online,
+   `logs/errors.log` on your computer), fix the CSV and run again. Learners that already have a key are skipped.
 5. Share each learner's key with them privately (e.g. filter **Generated keys** by cohort and copy).
+
+Use **one place** per cohort, online or your computer, not both: each keeps its own list of keys
+(OpenRouter still prevents duplicates either way).
 
 **When a cohort ends**, disable its keys at https://openrouter.ai/settings/keys (search for the cohort name,
 e.g. `mid-oct`). An automatic "revoke cohort" script is planned but not built yet.
@@ -210,25 +236,31 @@ e.g. `mid-oct`). An automatic "revoke cohort" script is planned but not built ye
 
 Open `config.js` in a text editor:
 
-- **Default credit limit per program**: `creditLimit` in `PROGRAMS` (`null` = no limit).
+- **Default credit limit per program**: `creditLimit` in `PROGRAMS` (now `5`; `null` = no limit).
 - **Limit buttons on the page**: `CREDIT_LIMIT_CHOICES` (default `[1, 2, 5, 10]`).
 - **Highest allowed limit**: `MAX_CREDIT_LIMIT` (default `100`).
 - **Monthly/weekly/daily limit reset**: `LIMIT_RESET` (default `null` = never resets).
 - **Workspace slugs** or a **new program**: add or edit an entry in `PROGRAMS`.
 
-Restart `npm run web` after changing `config.js`.
+Restart `npm run web` after changing `config.js`. For the online site, the change must be pushed to GitHub
+and redeployed (section 14, *Updating the site*).
 
 ---
 
-## 11. Output file
+## 11. Where the keys are saved
 
-`generated_openrouter_keys.csv` gets one row per key created, added as soon as each key is made:
+**Online:** in the private Vercel Blob store `openrouter-keys` (Vercel project → **Storage**). Each run makes
+one file under `keys/`, and every key is saved as soon as it's created. Only signed-in, allowed users see
+them, through the **Generated keys** section.
+
+**On your computer:** `generated_openrouter_keys.csv` gets one row per key created, added as soon as each
+key is made. Problems are written to `logs/errors.log`.
+
+Both use the same columns:
 
 ```
 SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH
 ```
-
-Keys from every run are added to the same file. Problems are written to `logs/errors.log`.
 
 ---
 
@@ -236,17 +268,20 @@ Keys from every run are added to the same file. Problems are written to `logs/er
 
 | Message | What to do |
 |---|---|
-| `HTTP 401` or `HTTP 403` / "Check that OPENROUTER_MANAGEMENT_KEY is a *Management* key" | The key in `.env` is wrong or is a normal API key. Create a **Management** key (section 4), paste it into `.env`, restart. |
-| "Management key missing" on the page | `.env` is missing or has no `OPENROUTER_MANAGEMENT_KEY`. Fix it and restart `npm run web`. |
-| `No workspace with slug "…"` | The workspace doesn't exist or its slug is different. Check https://openrouter.ai, then fix the slug in `config.js` or set `OR_WS_…` in `.env`. |
-| `learners.csv must have an "email id" header` | The first row of the CSV must be the column name `email id` (or `email_id` / `email`). |
+| `HTTP 401` or `HTTP 403` / "Check that OPENROUTER_MANAGEMENT_KEY is a *Management* key" | The Management key is wrong or is a normal API key. Create a **Management** key (section 4) and put it in `.env` (restart) or in the Vercel setting (redeploy). |
+| "Management key missing" on the page | No `OPENROUTER_MANAGEMENT_KEY` in `.env` / Vercel. Add it and restart / redeploy. |
+| `No workspace with slug "…"` | The workspace doesn't exist or its slug is different. Check https://openrouter.ai, then fix the slug in `config.js` or set `OR_WS_…`. |
+| `learners.csv must have an "email id" header` | The first row of the CSV must be the column name `email id` (or `email_id` / `email`). Use the dummy.csv template. |
 | `FAILED for …: invalid email` / `duplicate email` | That row was skipped. Fix the CSV and run again; existing keys are skipped. |
 | `Cannot write to generated_openrouter_keys.csv (EBUSY)` | The file is open in Excel. Close it and try again. |
 | `… has different columns …` | The output file is from an older version. Rename it (e.g. `old_keys.csv`) and run again. |
-| `Key created but NOT saved` | The key was created but couldn't be written to the CSV. Delete that key at https://openrouter.ai/settings/keys, fix the problem (usually Excel has the file open), and run again. |
+| `Key created but NOT saved` | The key was created but couldn't be saved. Delete that key at https://openrouter.ai/settings/keys (the message names it), fix the problem (usually Excel has the file open) and run again. |
 | "This account is not on the list" when signing in | Add the person's `@interviewkickstart.com` email to `ALLOWED_EMAILS` and redeploy (section 14). |
-| "Sign-in is not set up" on the online page | One of the settings in section 14 step 3 is missing or wrong; the message says which. Fix it and redeploy. |
-| `redirect_uri_mismatch` from Google | The address in Google's **Authorized redirect URIs** must match the site exactly, ending in `/auth/callback`. |
+| "Use your @interviewkickstart.com Google account" | The person picked a personal Google account. Sign in with the company one. |
+| "Sign-in is not set up" on the online page | One of the Vercel settings in section 14 is missing or wrong; the message says which. Fix it and redeploy. |
+| `redirect_uri_mismatch` from Google | Google's **Authorized redirect URIs** must contain exactly `https://openrouter-key-generator.vercel.app/auth/callback`. |
+| A Vercel login page before the Google sign-in | Vercel's own *Deployment Protection* is on (section 14). Log in with the Vercel account, or turn it off. |
+| "Stopped after 50 parts" | A very long list. Click **Preview** and **Generate** again; created keys are skipped. |
 | `Port 3000 is already in use` | The page is already running in another terminal. Use that one, or close it first. |
 | `COHORT is required` / `can only contain letters, numbers…` | Type a cohort name like `mid-oct`, using only letters, numbers, spaces and dashes. |
 | `'npm' is not recognized` | Node.js isn't installed, or the terminal was opened before installing it. Install Node.js and open a new terminal. |
@@ -255,70 +290,93 @@ Keys from every run are added to the same file. Problems are written to `logs/er
 
 ## 13. Security
 
-- `generated_openrouter_keys.csv` contains **learner emails and live API keys**. Never email it,
-  upload it, share it in chat, or commit it to Git. Give each learner only their own key.
-- `.env` contains your **Management key**, which can create and delete keys on the whole account.
-  Keep it only in `.env` (never in `.env.example` or anywhere shared). If it leaks, delete it at
-  https://openrouter.ai/settings/management-keys and create a new one.
-- `.gitignore` already keeps `.env`, `learners.csv`, the output CSV and `logs/errors.log` out of Git, and
+- Generated keys (the online list, `generated_openrouter_keys.csv`, any **Download CSV** file) contain
+  **learner emails and live API keys**. Never email them, share them in chat, or commit them to Git.
+  Give each learner only their own key.
+- The **Management key** can create and delete keys on the whole account. Keep it only in `.env` and in the
+  Vercel settings. If it leaks, delete it at https://openrouter.ai/settings/management-keys, create a new one
+  and update both places.
+- Online, only people on `ALLOWED_EMAILS` can sign in. Keep the list short and remove people who leave.
+- `.gitignore` keeps `.env`, `learners.csv`, the output CSV and `logs/errors.log` out of Git, and
   `.vercelignore` keeps them from being uploaded to Vercel.
 - Disable or delete a cohort's keys when the cohort ends.
 
 ---
 
-## 14. Online version on Vercel (Google sign-in)
+## 14. The online site (Vercel + Google sign-in)
 
-The same page can run on Vercel so the team can use it from a browser without installing anything.
-Online, it is different in three ways:
+### What's set up
 
-- **Everyone must sign in with Google.** Only `@interviewkickstart.com` accounts that are on your list
-  (`ALLOWED_EMAILS`) get in. Everyone else sees "not on the list". If sign-in isn't fully set up, the page
-  refuses everybody.
-- **Keys are saved in private Vercel Blob storage**, not in `generated_openrouter_keys.csv`. Each key is
-  saved as soon as it is made. The **Generated keys** section shows them and **Download CSV** gives you a file.
-  The online list and the CSV on your computer are separate.
+| Thing | Where |
+|---|---|
+| Site | https://openrouter-key-generator.vercel.app |
+| Vercel project | `openrouter-key-generator` in team `new-programs-ik` (https://vercel.com/new-programs-ik/openrouter-key-generator) |
+| Key storage | private Vercel Blob store `openrouter-keys` |
+| Google sign-in app | Google Cloud Console → APIs & Services → Credentials, client `997169956711-k2namb…` |
+| Code | https://github.com/new-programs-ik/openrouter-api-key-creation |
+
+Online, the page differs from the local one in three ways:
+
+- **Everyone must sign in with Google.** Only `@interviewkickstart.com` accounts that are on the list
+  (`ALLOWED_EMAILS`) get in. If any sign-in setting is missing, the site refuses everybody.
+- **Keys are saved in private Vercel Blob storage** (section 11), not in a CSV on anyone's computer.
 - **Big lists are done in parts** (about 4 minutes each) because Vercel stops long requests. The page
   continues by itself; just keep the tab open. Problems are written to the Vercel project's **Logs**.
 
-### Setting it up (once)
+### Vercel settings (Settings → Environment Variables, Production)
 
-1. **Google sign-in app.** Sign in to https://console.cloud.google.com with your company account.
-   1. Create a project (e.g. `openrouter-keys`).
-   2. **APIs & Services → OAuth consent screen**: choose **Internal** (only company accounts), app name
-      `OpenRouter Key Generator`, your email, Save.
-   3. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**.
-      Under **Authorized redirect URIs** add `https://YOUR-SITE.vercel.app/auth/callback` (your Vercel address)
-      and, to try it on your computer, `http://localhost:3000/auth/callback`.
-   4. Copy the **Client ID** and **Client secret**.
-2. **A random session secret.** Run this (any terminal) and copy the result:
+| Name | Value |
+|---|---|
+| `OPENROUTER_MANAGEMENT_KEY` | the OpenRouter Management key (section 4) |
+| `GOOGLE_CLIENT_ID` | from the Google sign-in app |
+| `GOOGLE_CLIENT_SECRET` | from the Google sign-in app |
+| `SESSION_SECRET` | 32+ random characters (see below) |
+| `ALLOWED_EMAILS` | comma-separated, e.g. `you@interviewkickstart.com,teammate@interviewkickstart.com` |
+| `APP_URL` | `https://openrouter-key-generator.vercel.app` |
+| `BLOB_READ_WRITE_TOKEN` | added by Vercel when the Blob store was connected; don't edit |
 
-   ```
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   ```
+To make a new `SESSION_SECRET` (this signs everyone out):
 
-3. **Vercel project settings → Environment Variables**, add:
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-   | Name | Value |
-   |---|---|
-   | `OPENROUTER_MANAGEMENT_KEY` | your Management key (section 4) |
-   | `GOOGLE_CLIENT_ID` | from step 1 |
-   | `GOOGLE_CLIENT_SECRET` | from step 1 |
-   | `SESSION_SECRET` | from step 2 |
-   | `ALLOWED_EMAILS` | e.g. `you@interviewkickstart.com,teammate@interviewkickstart.com` |
+**After changing any setting, redeploy:** Vercel project → **Deployments** → the top one → **⋯** →
+**Redeploy**. Settings only take effect on a new deployment.
 
-4. **Vercel project → Storage → Create → Blob**, choose **Private**, and connect it to the project.
-   This adds `BLOB_READ_WRITE_TOKEN` by itself.
-5. Redeploy so the settings take effect.
+### Adding or removing a person
 
-**Adding or removing a person:** edit `ALLOWED_EMAILS` in the Vercel settings and redeploy. Someone removed
-from the list is signed out on their next click.
+1. Vercel project → **Settings → Environment Variables** → `ALLOWED_EMAILS` → **Edit**.
+2. Add or remove the `@interviewkickstart.com` email (comma-separated). Other domains are refused, and a
+   wrong entry makes the site refuse everyone until it's fixed.
+3. **Save**, then **Redeploy**. Someone removed from the list is signed out on their next click.
 
-**Trying sign-in on your computer:** put the same four `GOOGLE_…`, `SESSION_SECRET` and `ALLOWED_EMAILS`
-lines in `.env` and run `npm run web`. Leave them out to use the local page without signing in.
+### Vercel's own login protection
+
+Vercel's **Deployment Protection** (Settings → Deployment Protection → *Vercel Authentication*) is
+currently **on**. It asks for a Vercel login before the Google sign-in. Teammates without access to the
+Vercel team can't open the site until it is set to **Disabled**; Google sign-in still protects everything.
+
+### Updating the site after a code change
+
+From this folder, after pushing to GitHub:
+
+```
+npx vercel deploy --prod
+```
+
+(You need to be logged in with `npx vercel login` as the account that owns the `new-programs-ik` team.)
+
+### Trying Google sign-in on your computer
+
+Add `http://localhost:3000/auth/callback` to the Google app's **Authorized redirect URIs**, put
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET` and `ALLOWED_EMAILS` in `.env`, and run
+`npm run web`. Leave them out to use the local page without signing in.
 
 ---
 
 ## For developers
 
-- `npm test` runs the test suite against a fake OpenRouter server (no real keys are created).
+- `npm test` runs the test suite against a fake OpenRouter server and a fake Google (no real keys are created).
+- `local-server.js` is the local web server; `api/index.js` is the Vercel entry point; both use `lib/webApp.js`.
 - Code layout and rules are described in `CLAUDE.md`.
