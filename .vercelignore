@@ -5,3 +5,4 @@ logs
 test
 node_modules
 .git
+.env.local

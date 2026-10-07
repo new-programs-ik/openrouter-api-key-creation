@@ -21,9 +21,9 @@ plain language.
 |---|---|
 | `config.js` | Programs → workspace slug + default credit limit, regions, limit choices, `MAX_CREDIT_LIMIT`, `LIMIT_RESET`, `DELAY_MS`, `ALLOWED_DOMAIN`, `SESSION_HOURS`, `RUN_TIME_LIMIT_MS`, file paths |
 | `createKeysApi.js` | Command-line entry point |
-| `server.js` | Local web server (plain Node `http`, 127.0.0.1 only) around `lib/webApp.js` |
+| `local-server.js` | Local web server (plain Node `http`, 127.0.0.1 only) around `lib/webApp.js`. Don't name a root file `server.js`, `index.js` or `app.js`: Vercel would use it as the entry point instead of `api/index.js` |
 | `api/index.js`, `vercel.json`, `.vercelignore`, `public/` | Vercel entry point (hosted mode), routing/time limit, upload exclusions, static `robots.txt` |
-| `lib/webApp.js` | All web routes, shared by `server.js` and `api/index.js` |
+| `lib/webApp.js` | All web routes, shared by `local-server.js` and `api/index.js` |
 | `lib/auth.js` | Google sign-in (OAuth code flow) and the signed session cookie |
 | `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
 | `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN) |

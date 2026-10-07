@@ -6,7 +6,7 @@
   "scripts": {
     "api": "node createKeysApi.js",
     "dry": "node createKeysApi.js --dry-run",
-    "web": "node server.js",
+    "web": "node local-server.js",
     "test": "node test/run.js"
   },
   "engines": {

@@ -1,5 +1,5 @@
 // npm test: unit tests for lib/common.js, createKeysApi.js against the mock server,
-// and the web UI server (server.js) against the mock server.
+// and the web UI server (local-server.js) against the mock server.
 // All test files live in a temp folder, so your real learners.csv / output CSV are never touched.
 const assert = require('assert');
 const fs = require('fs');
@@ -336,7 +336,7 @@ const webFetch = (p, opts = {}) => fetch(webUrl(p), {
 
 function startWeb(port = WEB_PORT, extraEnv = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
+    const child = spawn(process.execPath, [path.join(ROOT, 'local-server.js')], {
       env: { ...baseEnv(), PORT: String(port), NO_OPEN: '1', ...extraEnv },
     });
     let out = '';

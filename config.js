@@ -1,4 +1,4 @@
-// Settings shared by the command-line script (createKeysApi.js) and the web UI (server.js).
+// Settings shared by the command-line script (createKeysApi.js) and the web UI (local-server.js).
 const path = require('path');
 
 // One OpenRouter workspace per program. Guardrails/presets are set on the workspace.

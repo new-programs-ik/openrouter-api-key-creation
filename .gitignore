@@ -4,3 +4,5 @@ generated_openrouter_keys.csv
 .env
 logs/errors.log
 .vercel/
+.vercel
+.env*
