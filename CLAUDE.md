@@ -11,19 +11,26 @@ plain language.
   credit limit, upload the CSV, Preview, Generate. The "Generated keys" section lists the output CSV.
 - **Command line:** `npm run api` asks the same questions in the terminal (or reads env vars
   `PROGRAM`, `REGION`, `COHORT`, `CREDIT_LIMIT`). `npm run dry` shows key names without network calls.
+- **Online (Vercel):** the same page via `api/index.js`, with Google sign-in required and keys saved to private
+  Vercel Blob. Setup is in README section 14.
 - **Tests:** `npm test` (mock OpenRouter server, temp folders, no real keys).
 
 ## Files
 
 | File | What it does |
 |---|---|
-| `config.js` | Programs → workspace slug + default credit limit, regions, limit choices, `MAX_CREDIT_LIMIT`, `LIMIT_RESET`, `DELAY_MS`, file paths |
+| `config.js` | Programs → workspace slug + default credit limit, regions, limit choices, `MAX_CREDIT_LIMIT`, `LIMIT_RESET`, `DELAY_MS`, `ALLOWED_DOMAIN`, `SESSION_HOURS`, `RUN_TIME_LIMIT_MS`, file paths |
 | `createKeysApi.js` | Command-line entry point |
-| `server.js` + `web/index.html` | Local web UI (plain Node `http`, vanilla HTML/JS, no CDN) |
+| `server.js` | Local web server (plain Node `http`, 127.0.0.1 only) around `lib/webApp.js` |
+| `api/index.js`, `vercel.json`, `.vercelignore`, `public/` | Vercel entry point (hosted mode), routing/time limit, upload exclusions, static `robots.txt` |
+| `lib/webApp.js` | All web routes, shared by `server.js` and `api/index.js` |
+| `lib/auth.js` | Google sign-in (OAuth code flow) and the signed session cookie |
+| `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
+| `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN) |
 | `lib/common.js` | `.env` loader, CSV reading/validation, cohort/region/program/limit parsing, key names, CSV appender |
 | `lib/openrouter.js` | Management API client, `planKeys` (preview), `generateKeys` (the creation loop, reports progress via `onEvent`) |
 | `lib/prompts.js` | Terminal questions for the CLI |
-| `test/mockServer.js`, `test/run.js` | Fake Management API on port 8787 and the test suite |
+| `test/mockServer.js`, `test/run.js` | Fake Management API + Google token endpoint on port 8787, and the test suite |
 
 Both front ends call the same `lib/` code; put shared behaviour there, not in an entry point.
 
@@ -38,14 +45,24 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
 - **Output CSV columns are fixed:** `SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH`.
   The user's real file already uses them; the appender refuses a file whose header differs. Don't change
   the columns without a migration. The header is written only when the file is new; each row is written right after its key is created.
+- **Stores:** `generateKeys` saves through a store (`lib/storage.js`); `store.startRun()` must fail before any key
+  is created if saving can't work. The Blob store writes one CSV per run under `keys/`, same columns, rewritten
+  after every key, always `access: 'private'`. Never store keys in a public blob.
+- **Long runs (web):** `/api/generate` stops after `RUN_TIME_LIMIT_MS` (only between keys) and returns `nextSerial`;
+  the page calls again with `startAt`. Keep `RUN_TIME_LIMIT_MS` + one request timeout below `maxDuration` in `vercel.json`.
 - **Never print or stream a full API key.** Console and web progress show the first 14 characters only
   (`maskKey`). Full keys exist only in the output CSV and the `/api/keys` response for the local page.
 - **Credit limit:** per run (UI choice / CLI question / `CREDIT_LIMIT`), defaults to the program's
   `creditLimit`; `none` = no limit; values above `MAX_CREDIT_LIMIT` are rejected.
 - **Errors:** log `FAILED for <email>: <message>`, append to `logs/errors.log`, continue. Stop the run if a
   created key can't be saved (the key can't be fetched again).
-- **Web server security:** listens on 127.0.0.1 only, checks the `Host` header, and requires
-  `X-Requested-With: key-ui` on `/api/*`. Keep all three.
+- **Web server security:** the local server listens on 127.0.0.1 only and checks the `Host` header; both modes
+  require `X-Requested-With: key-ui` on `/api/*`. Keep all of these.
+- **Sign-in (`lib/auth.js`):** on when any of `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`,
+  `ALLOWED_EMAILS` is set; then all must be valid or every request gets 503. Hosted mode without sign-in also
+  gets 503 (fail closed). A user must be a verified Google account with `hd` = `ALLOWED_DOMAIN`, an email in that
+  domain, and be listed in `ALLOWED_EMAILS` (re-checked on every request). The allowlist may only contain
+  `ALLOWED_DOMAIN` addresses. Session = HMAC-signed cookie (HttpOnly, SameSite=Lax, Secure on HTTPS).
 
 ## OpenRouter Management API
 
@@ -59,9 +76,11 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
 
 ## Conventions
 
-- Node 18+, CommonJS, built-in `fetch`. Dependencies are only `csv-parser` and `csv-writer`; avoid adding more.
+- Node 18+, CommonJS, built-in `fetch`. Dependencies are only `csv-parser`, `csv-writer` and `@vercel/blob`
+  (Node 20+, loaded only by the Blob store, so local use still works on 18); avoid adding more.
 - Must work on Windows, macOS and Linux (paths via `path`, no shell-specific npm scripts).
 - Tests write only to a temp folder via `LEARNERS_CSV` / `OUTPUT_CSV` / `LOGS_DIR` and must never touch the
-  real `learners.csv`, `generated_openrouter_keys.csv` or `.env`. Run `npm test` after changes.
+  real `learners.csv`, `generated_openrouter_keys.csv` or `.env`. Blob tests use an in-memory fake, never a real store.
+  Run `npm test` after changes.
 - Don't run anything that creates real keys; the user tests against OpenRouter themselves.
 - README.md is written for a non-developer, with commands for Windows CMD, PowerShell and macOS/Linux; update it when behaviour changes.

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · OpenRouter Key Generator</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #616b76; --border: #dfe3e8;
+    --accent: #3b5bdb; --accent-text: #ffffff; --bad: #b42318; --bad-soft: #fde7e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --panel: #1a1e24; --text: #e6e9ed; --muted: #9aa4af; --border: #2c323a;
+      --accent: #7c96ff; --accent-text: #0d1020; --bad: #ff8a80; --bad-soft: #3d1d1b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .card { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  h1 { font-size: 19px; margin: 0 0 6px; }
+  p { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+  a.btn { display: block; text-align: center; font-weight: 600; text-decoration: none; border-radius: 8px; padding: 10px 18px; background: var(--accent); color: var(--accent-text); }
+  a.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .msg { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 18px; background: var(--bad-soft); color: var(--bad); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>OpenRouter Key Generator</h1>
+  <p>Sign in with your Interview Kickstart Google account. Only approved team members can create keys.</p>
+  <div class="msg hidden" id="msg" role="alert"></div>
+  <a class="btn" href="/auth/login">Sign in with Google</a>
+</main>
+<script>
+const MESSAGES = {
+  not_allowed: 'This account is not on the list of people allowed to create keys. Ask an admin to add you.',
+  domain: 'Use your @interviewkickstart.com Google account.',
+  expired: 'The sign-in took too long or was opened in another tab. Please try again.',
+  cancelled: 'Sign-in was cancelled.',
+  failed: 'Google sign-in failed. Please try again.',
+};
+const code = new URLSearchParams(location.search).get('error');
+if (code) {
+  const msg = document.getElementById('msg');
+  msg.textContent = MESSAGES[code] || MESSAGES.failed;
+  msg.classList.remove('hidden');
+}
+</script>
+</body>
+</html>

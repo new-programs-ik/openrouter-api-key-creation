@@ -11,10 +11,16 @@ const { createMockServer } = require('./mockServer');
 const { PROGRAMS } = require('../config');
 const {
   buildKeyName, findExistingKeyName, resolveCohort, resolveCreditLimit, resolveProgram, resolveRegion,
+  parseLearnersText,
 } = require('../lib/common');
+const { createClient, generateKeys } = require('../lib/openrouter');
+const { createFileStore, createBlobStore } = require('../lib/storage');
+const { createWebHandler } = require('../lib/webApp');
 
 const MOCK_PORT = 8787;
 const WEB_PORT = 3917;
+const AUTH_PORT = 3918;
+const HOSTED_PORT = 3919;
 const ROOT = path.join(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'or-keys-test-'));
 const files = {
@@ -58,6 +64,21 @@ const TEST_ENV = {
   OR_WS_EM: '',
   OR_WS_FDE: '',
   DRY_RUN: '',
+  // Sign-in off unless a test turns it on (a real .env must not switch it on).
+  GOOGLE_CLIENT_ID: '',
+  GOOGLE_CLIENT_SECRET: '',
+  SESSION_SECRET: '',
+  ALLOWED_EMAILS: '',
+  APP_URL: '',
+};
+
+const AUTH_ENV = {
+  GOOGLE_CLIENT_ID: 'test-client',
+  GOOGLE_CLIENT_SECRET: 'test-secret',
+  SESSION_SECRET: 'x'.repeat(40),
+  ALLOWED_EMAILS: 'admin@interviewkickstart.com, Second@InterviewKickstart.com',
+  GOOGLE_AUTH_URL: 'https://accounts.example/auth',
+  GOOGLE_TOKEN_URL: `http://127.0.0.1:${MOCK_PORT}/oauth/token`,
 };
 
 // stdin/stdout are pipes, so the script runs non-interactively (no prompts).
@@ -313,10 +334,10 @@ const webFetch = (p, opts = {}) => fetch(webUrl(p), {
   ...opts, headers: { 'X-Requested-With': 'key-ui', 'Content-Type': 'application/json', ...(opts.headers || {}) },
 });
 
-function startWeb() {
+function startWeb(port = WEB_PORT, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
-      env: { ...baseEnv(), PORT: String(WEB_PORT), NO_OPEN: '1' },
+      env: { ...baseEnv(), PORT: String(port), NO_OPEN: '1', ...extraEnv },
     });
     let out = '';
     const onData = (d) => {
@@ -396,7 +417,7 @@ test('web: generate streams progress and the keys show up in /api/keys', async (
   const events = (await res.text()).trim().split('\n').map((l) => JSON.parse(l));
   const done = events.find((e) => e.type === 'done');
   assert.deepStrictEqual({ ...done, type: undefined }, {
-    type: undefined, created: 2, skipped: 0, failed: 1, program: 'pm-tpm', region: 'IND', cohort: 'early-nov', limit: 7.5,
+    type: undefined, created: 2, skipped: 0, failed: 1, program: 'pm-tpm', region: 'IND', cohort: 'early-nov', limit: 7.5, nextSerial: null,
   });
   for (const key of mock.state.issuedKeys) assert.ok(!JSON.stringify(events).includes(key), 'full key in progress stream');
   assert.strictEqual(mock.state.createBodies.at(-1).workspace_id, 'ws-pm-tpm');
@@ -405,6 +426,227 @@ test('web: generate streams progress and the keys show up in /api/keys', async (
   const { rows } = await (await webFetch('/api/keys')).json();
   assert.deepStrictEqual(rows.map((r) => r.KEY_NAME), ['IND-001-early-nov-web.one@test.com', 'IND-002-early-nov-web.two@test.com']);
   assert.match(rows[0].API_KEY, /^sk-or-v1-/);
+});
+
+// ---------- storage and long runs ----------
+
+// In-memory stand-in for the @vercel/blob module.
+function fakeBlob({ failPutAfter = Infinity } = {}) {
+  const files = new Map();
+  const puts = [];
+  return {
+    files,
+    puts,
+    async put(pathname, body, options) {
+      puts.push({ pathname, options });
+      if (puts.length > failPutAfter) throw new Error('Blob is down');
+      files.set(pathname, String(body));
+      return { pathname };
+    },
+    async del(pathname) { files.delete(pathname); },
+    async list({ prefix }) {
+      return { blobs: [...files.keys()].filter((p) => p.startsWith(prefix)).map((pathname) => ({ pathname })), hasMore: false };
+    },
+    async get(pathname) {
+      return files.has(pathname) ? { statusCode: 200, stream: new Response(files.get(pathname)).body } : null;
+    },
+  };
+}
+
+const mockClient = () => createClient({ baseUrl: `http://127.0.0.1:${MOCK_PORT}/api/v1`, managementKey: 'test' });
+
+test('blob store: saves each key privately and reads them back', async () => {
+  const blob = fakeBlob();
+  const store = createBlobStore({ blob });
+  const { rows } = await parseLearnersText('email\nblob.one@test.com\nblob.two@test.com\n');
+  const summary = await generateKeys({ client: mockClient(), rows, program: 'em', region: 'US', cohort: 'blob-run', store });
+  assert.strictEqual(summary.created, 2);
+  assert.ok(blob.puts.every((p) => p.options.access === 'private'), 'every Blob write must be private');
+  assert.strictEqual(blob.files.size, 1, 'one file per run');
+  const [text] = blob.files.values();
+  assert.strictEqual(text.split('\n')[0], HEADER);
+  const saved = await store.readAll();
+  assert.deepStrictEqual(saved.map((r) => r.KEY_NAME), ['US-001-blob-run-blob.one@test.com', 'US-002-blob-run-blob.two@test.com']);
+  assert.match(saved[0].API_KEY, /^sk-or-v1-[0-9a-f]{64}$/);
+});
+
+test('blob store: a failed save stops the run and an empty run leaves no file', async () => {
+  const blob = fakeBlob({ failPutAfter: 1 }); // the run's first (empty) file saves, the first key doesn't
+  const { rows } = await parseLearnersText('email\nsave.fails@test.com\nnever.made@test.com\n');
+  const before = mock.state.createBodies.length;
+  const summary = await generateKeys({
+    client: mockClient(), rows, program: 'em', region: 'US', cohort: 'blob-fail', store: createBlobStore({ blob }),
+  });
+  assert.deepStrictEqual([summary.created, summary.failed], [0, 1]);
+  assert.strictEqual(mock.state.createBodies.length - before, 1, 'must stop after the key that could not be saved');
+  assert.strictEqual(blob.files.size, 0);
+});
+
+test('blob store: nothing is created if Blob is not reachable', async () => {
+  const blob = fakeBlob({ failPutAfter: 0 });
+  const { rows } = await parseLearnersText('email\nno.blob@test.com\n');
+  const before = mock.state.createBodies.length;
+  await assert.rejects(generateKeys({
+    client: mockClient(), rows, program: 'em', region: 'US', cohort: 'no-blob', store: createBlobStore({ blob }),
+  }), /Blob is down/);
+  assert.strictEqual(mock.state.createBodies.length, before);
+});
+
+test('deadline: stops after a key and says which row to carry on from', async () => {
+  reset();
+  const store = createFileStore({ outputCsv: files.output, logsDir: files.logs });
+  const { rows } = await parseLearnersText('email\npart.one@test.com\npart.two@test.com\npart.three@test.com\n');
+  const first = await generateKeys({
+    client: mockClient(), rows, program: 'em', region: 'IND', cohort: 'parts', store, deadline: Date.now() - 1,
+  });
+  assert.deepStrictEqual([first.created, first.nextSerial], [1, 2]);
+  const rest = await generateKeys({
+    client: mockClient(), rows: rows.filter((r) => r.serial >= first.nextSerial), program: 'em', region: 'IND', cohort: 'parts', store,
+  });
+  assert.deepStrictEqual([rest.created, rest.nextSerial], [2, null]);
+  assert.deepStrictEqual(keyNames(), ['IND-001-parts-part.one@test.com', 'IND-002-parts-part.two@test.com', 'IND-003-parts-part.three@test.com']);
+});
+
+// ---------- Google sign-in ----------
+
+const code = (claims) => Buffer.from(JSON.stringify(claims)).toString('base64url');
+const cookieFrom = (res, name) => (res.headers.getSetCookie().find((c) => c.startsWith(`${name}=`)) || '').split(';')[0];
+
+// Runs the sign-in flow against a server; returns the callback response.
+async function signIn(base, claims, { state: badState } = {}) {
+  const login = await fetch(`${base}/auth/login`, { redirect: 'manual' });
+  const state = new URL(login.headers.get('location')).searchParams.get('state');
+  return fetch(`${base}/auth/callback?code=${code(claims)}&state=${badState || state}`, {
+    redirect: 'manual', headers: { Cookie: cookieFrom(login, 'or_oauth_state') },
+  });
+}
+
+let authWeb;
+const authBase = `http://127.0.0.1:${AUTH_PORT}`;
+const authApi = (p, cookie) => fetch(`${authBase}${p}`, { headers: { 'X-Requested-With': 'key-ui', Cookie: cookie || '' } });
+
+test('auth: start server with Google sign-in on', async () => {
+  authWeb = await startWeb(AUTH_PORT, AUTH_ENV);
+});
+
+test('auth: signed-out visitors get the sign-in page and no API access', async () => {
+  const page = await (await fetch(`${authBase}/`)).text();
+  assert.match(page, /Sign in with Google/);
+  assert.doesNotMatch(page, /Create keys/);
+  for (const p of ['/api/config', '/api/keys']) assert.strictEqual((await authApi(p)).status, 401, p);
+});
+
+test('auth: /auth/login sends you to Google, company accounts only', async () => {
+  const res = await fetch(`${authBase}/auth/login`, { redirect: 'manual' });
+  assert.strictEqual(res.status, 302);
+  const to = new URL(res.headers.get('location'));
+  assert.strictEqual(to.origin + to.pathname, 'https://accounts.example/auth');
+  assert.strictEqual(to.searchParams.get('client_id'), 'test-client');
+  assert.strictEqual(to.searchParams.get('hd'), 'interviewkickstart.com');
+  assert.strictEqual(to.searchParams.get('redirect_uri'), `${authBase}/auth/callback`);
+  assert.match(cookieFrom(res, 'or_oauth_state'), /^or_oauth_state=.{20,}/);
+  assert.match(res.headers.getSetCookie()[0], /HttpOnly; SameSite=Lax/);
+});
+
+test('auth: an allowed account signs in and can use the app', async () => {
+  for (const email of ['admin@interviewkickstart.com', 'SECOND@interviewkickstart.com']) {
+    const res = await signIn(authBase, { email, hd: 'interviewkickstart.com' });
+    assert.strictEqual(res.status, 302, email);
+    assert.strictEqual(res.headers.get('location'), '/');
+    const session = cookieFrom(res, 'or_session');
+    assert.ok(session.length > 20, `session cookie for ${email}`);
+    const config = await (await authApi('/api/config', session)).json();
+    assert.strictEqual(config.user.email, email.toLowerCase());
+    const page = await (await fetch(`${authBase}/`, { headers: { Cookie: session } })).text();
+    assert.match(page, /Create keys/);
+  }
+  assert.strictEqual(mock.state.tokenRequests.at(-1).redirect_uri, `${authBase}/auth/callback`);
+});
+
+test('auth: refuses other domains, unlisted people, unverified emails and a wrong state', async () => {
+  const cases = [
+    [{ email: 'someone@gmail.com' }, 'domain'],
+    [{ email: 'admin@interviewkickstart.com' }, 'domain'], // no hd claim: not a company Workspace account
+    [{ email: 'admin@interviewkickstart.com.evil.com', hd: 'interviewkickstart.com' }, 'domain'],
+    [{ email: 'not.listed@interviewkickstart.com', hd: 'interviewkickstart.com' }, 'not_allowed'],
+    [{ email: 'admin@interviewkickstart.com', hd: 'interviewkickstart.com', email_verified: false }, 'failed'],
+    [{ email: 'admin@interviewkickstart.com', hd: 'interviewkickstart.com', aud: 'other-client' }, 'failed'],
+  ];
+  for (const [claims, error] of cases) {
+    const res = await signIn(authBase, claims);
+    assert.strictEqual(res.headers.get('location'), `/?error=${error}`, JSON.stringify(claims));
+    assert.strictEqual(cookieFrom(res, 'or_session'), '', `no session for ${JSON.stringify(claims)}`);
+  }
+  const res = await signIn(authBase, { email: 'admin@interviewkickstart.com', hd: 'interviewkickstart.com' }, { state: 'forged' });
+  assert.strictEqual(res.headers.get('location'), '/?error=expired');
+});
+
+test('auth: a tampered session cookie is rejected, sign out clears it', async () => {
+  const res = await signIn(authBase, { email: 'admin@interviewkickstart.com', hd: 'interviewkickstart.com' });
+  const session = cookieFrom(res, 'or_session');
+  const [name, value] = session.split('=');
+  const [payload, sig] = value.split('.');
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  const forged = Buffer.from(JSON.stringify({ ...claims, email: 'second@interviewkickstart.com' })).toString('base64url');
+  assert.strictEqual((await authApi('/api/config', `${name}=${forged}.${sig}`)).status, 401);
+  const expired = Buffer.from(JSON.stringify({ ...claims, exp: Date.now() - 1 })).toString('base64url');
+  assert.strictEqual((await authApi('/api/config', `${name}=${expired}.${sig}`)).status, 401);
+
+  const out = await fetch(`${authBase}/auth/logout`, { method: 'POST', redirect: 'manual', headers: { Cookie: session } });
+  assert.strictEqual(out.status, 302);
+  assert.match(out.headers.getSetCookie()[0], /^or_session=; .*Max-Age=0/);
+});
+
+// ---------- hosted (Vercel) mode, run in-process ----------
+
+const hostedServers = [];
+async function startHosted(env, store) {
+  const server = http.createServer(createWebHandler({ hosted: true, env, store }));
+  await new Promise((resolve) => server.listen(HOSTED_PORT + hostedServers.length, '127.0.0.1', resolve));
+  hostedServers.push(server);
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+test('hosted: refuses everything until sign-in is set up', async () => {
+  const base = await startHosted({ OPENROUTER_MANAGEMENT_KEY: 'test' }, createBlobStore({ blob: fakeBlob() }));
+  const page = await fetch(`${base}/`);
+  assert.strictEqual(page.status, 503);
+  assert.match(await page.text(), /Sign-in is not set up/);
+  assert.strictEqual((await fetch(`${base}/api/keys`, { headers: { 'X-Requested-With': 'key-ui' } })).status, 503);
+});
+
+test('hosted: a bad allowlist refuses everyone', async () => {
+  const base = await startHosted({ ...AUTH_ENV, ALLOWED_EMAILS: 'admin@interviewkickstart.com, friend@gmail.com' },
+    createBlobStore({ blob: fakeBlob() }));
+  const res = await fetch(`${base}/`);
+  assert.strictEqual(res.status, 503);
+  assert.match(await res.text(), /remove friend@gmail\.com/);
+});
+
+test('hosted: signed-in user generates keys into Blob through the Vercel route', async () => {
+  const blob = fakeBlob();
+  const base = await startHosted({
+    ...AUTH_ENV, OPENROUTER_MANAGEMENT_KEY: 'test', OPENROUTER_BASE_URL: `http://127.0.0.1:${MOCK_PORT}/api/v1`,
+  }, createBlobStore({ blob }));
+  const res = await signIn(base, { email: 'admin@interviewkickstart.com', hd: 'interviewkickstart.com' });
+  assert.match(res.headers.getSetCookie().join('\n'), /or_session=.*; Secure/, 'HTTPS cookie when hosted');
+  const session = cookieFrom(res, 'or_session');
+  const headers = { 'X-Requested-With': 'key-ui', 'Content-Type': 'application/json', Cookie: session };
+
+  // vercel.json rewrites /api/config to /api/index?route=/api/config
+  const config = await (await fetch(`${base}/api/index?route=/api/config`, { headers })).json();
+  assert.strictEqual(config.learnersFile, null, 'no project-folder learners file when hosted');
+  assert.match(config.outputFile, /Vercel Blob/);
+
+  const gen = await fetch(`${base}/api/generate`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ program: 'swe', region: 'US', cohort: 'hosted', csv: 'email\nhosted.one@test.com\n' }),
+  });
+  const events = (await gen.text()).trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.find((e) => e.type === 'done').created, 1);
+  const { rows } = await (await fetch(`${base}/api/keys`, { headers })).json();
+  assert.deepStrictEqual(rows.map((r) => r.KEY_NAME), ['US-001-hosted-hosted.one@test.com']);
+  assert.strictEqual((await fetch(`${base}/api/keys`, { headers: { 'X-Requested-With': 'key-ui' } })).status, 401);
 });
 
 (async () => {
@@ -427,7 +669,8 @@ test('web: generate streams progress and the keys show up in /api/keys', async (
       }
     }
   } finally {
-    if (web) { web.removeAllListeners('exit'); web.kill(); }
+    for (const child of [web, authWeb]) if (child) { child.removeAllListeners('exit'); child.kill(); }
+    for (const server of hostedServers) server.close();
     mock.server.close();
     fs.rmSync(tmp, { recursive: true, force: true });
   }

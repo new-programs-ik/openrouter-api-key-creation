@@ -35,6 +35,8 @@
   .pill.ok { background: var(--ok-soft); color: var(--ok); }
   .pill.bad { background: var(--bad-soft); color: var(--bad); }
   .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .user form { margin: 0; }
 
   .steps { display: grid; gap: 20px; }
   .step label.title { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
@@ -104,7 +106,13 @@
 <header>
   <div class="wrap">
     <h1>OpenRouter Key Generator</h1>
-    <span id="keyStatus" class="pill">Checking…</span>
+    <div class="row">
+      <span id="keyStatus" class="pill">Checking…</span>
+      <span class="user hidden" id="userBox">
+        <span id="userEmail"></span>
+        <form method="post" action="/auth/logout"><button class="btn small">Sign out</button></form>
+      </span>
+    </div>
   </div>
 </header>
 
@@ -178,7 +186,7 @@
         <button class="btn small" id="downloadBtn">Download CSV</button>
       </div>
     </div>
-    <p class="sub">Everything in <code id="outputFile">generated_openrouter_keys.csv</code>. These are live keys: don't share this list.</p>
+    <p class="sub">Everything in <span id="outputFile">generated_openrouter_keys.csv</span>. These are live keys: don't share this list.</p>
     <div class="row" style="margin-bottom: 12px;">
       <select id="fProgram" aria-label="Filter by program"><option value="">All programs</option></select>
       <select id="fRegion" aria-label="Filter by region"><option value="">All regions</option></select>
@@ -206,6 +214,7 @@ const state = { config: null, csv: null, csvName: null, preview: null, previewKe
 
 async function api(path, options = {}) {
   const res = await fetch(path, { ...options, headers: { 'X-Requested-With': 'key-ui', 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  if (res.status === 401) { location.href = '/'; throw new Error('Signed out. Please sign in again.'); }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try { msg = (await res.json()).error || msg; } catch {}
@@ -289,7 +298,7 @@ function refreshControls() {
   if (!ready) hint = 'Fill in all the steps above, then preview.';
   else if (state.previewKey === 'ran') hint = 'Run finished. Preview again before generating more.';
   else if (!fresh) hint = state.preview ? 'Settings changed. Preview again.' : 'Preview to check the key names first.';
-  else if (!state.config.keyConfigured) hint = 'Add OPENROUTER_MANAGEMENT_KEY to .env and restart to generate.';
+  else if (!state.config.keyConfigured) hint = 'Set OPENROUTER_MANAGEMENT_KEY (in .env, or in the Vercel settings) and restart to generate.';
   else if (!toCreate) hint = 'Nothing new to create.';
   $('actionHint').textContent = state.busy ? 'Working…' : hint;
 }
@@ -309,6 +318,10 @@ function renderSetup(config) {
   $('programs').addEventListener('change', applyDefaultLimit);
   $('limitReset').textContent = config.limitReset ? ` Limits reset ${config.limitReset}.` : '';
   $('outputFile').textContent = config.outputFile;
+  if (config.user) {
+    $('userEmail').textContent = config.user.email;
+    $('userBox').classList.remove('hidden');
+  }
   if (config.learnersFile) {
     $('useFolderFile').innerHTML = `or <button class="linkbtn" id="useFolderBtn">use ${esc(config.learnersFile)} from the project folder</button>`;
     $('useFolderBtn').onclick = async () => {
@@ -402,6 +415,33 @@ async function preview() {
   }
 }
 
+// One /api/generate call: updates the rows as progress streams in and returns the 'done' event.
+async function generatePart(body, progress) {
+  const res = await api('/api/generate', { method: 'POST', body: JSON.stringify(body) });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let done = null;
+  for (;;) {
+    const { value, done: end } = await reader.read();
+    if (end) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const e = JSON.parse(line);
+      if (e.type === 'processing') setRow(e.serial, 'working', '');
+      else if (e.type === 'created') { setRow(e.serial, 'created', e.maskedKey); progress.value++; }
+      else if (e.type === 'skipped') { setRow(e.serial, 'skipped', `already exists as ${e.existing}`); progress.value++; }
+      else if (e.type === 'failed') { setRow(e.serial, 'failed', e.message); progress.value++; }
+      else if (e.type === 'done') done = e;
+      else if (e.type === 'error') throw new Error(e.message);
+    }
+  }
+  if (!done) throw new Error('The connection closed before the run finished. Check the server logs, then Preview to see what was created.');
+  return done;
+}
+
 async function generate() {
   const s = settings();
   const n = state.preview.counts.toCreate;
@@ -412,37 +452,26 @@ async function generate() {
   showMsg('info', 'Generating keys… keep this tab open.');
   const progress = $('progress');
   progress.max = state.preview.rows.length; progress.value = 0; progress.classList.remove('hidden');
-  let done = null;
+  const totals = { created: 0, skipped: 0, failed: 0 };
   try {
-    const res = await api('/api/generate', { method: 'POST', body: JSON.stringify({ ...s, csv: state.csv }) });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done: end } = await reader.read();
-      if (end) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n'); buf = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const e = JSON.parse(line);
-        if (e.type === 'processing') setRow(e.serial, 'working', '');
-        else if (e.type === 'created') { setRow(e.serial, 'created', e.maskedKey); progress.value++; }
-        else if (e.type === 'skipped') { setRow(e.serial, 'skipped', `already exists as ${e.existing}`); progress.value++; }
-        else if (e.type === 'failed') { setRow(e.serial, 'failed', e.message); progress.value++; }
-        else if (e.type === 'done') done = e;
-        else if (e.type === 'error') throw new Error(e.message);
-      }
+    // A big list is done in parts: the server stops before its time limit and says where to carry on.
+    let done = null;
+    for (let part = 1, startAt = 1; ; part++) {
+      done = await generatePart({ ...s, csv: state.csv, startAt }, progress);
+      totals.created += done.created; totals.skipped += done.skipped; totals.failed += done.failed;
+      if (!done.nextSerial) break;
+      if (part >= 50) throw new Error('Stopped after 50 parts. Preview and generate again to carry on; created keys are skipped.');
+      startAt = done.nextSerial;
+      showMsg('info', `Generating keys… part ${part + 1} (big list, continuing automatically). Keep this tab open.`);
     }
-    if (!done) throw new Error('The connection closed before the run finished. Check the terminal running the UI.');
-    const kind = done.failed ? 'warn' : 'ok';
-    showMsg(kind, `Done: ${done.created} created, ${done.skipped} skipped, ${done.failed} failed `
+    const kind = totals.failed ? 'warn' : 'ok';
+    showMsg(kind, `Done: ${totals.created} created, ${totals.skipped} skipped, ${totals.failed} failed `
       + `(program=${done.program}, region=${done.region}, cohort=${done.cohort}, limit=${done.limit === null ? 'none' : `$${done.limit}`}).`
-      + (done.failed ? ' Details are in logs/errors.log.' : ''));
+      + (totals.failed ? ` Details are in ${state.config.errorsLog}.` : ''));
     progress.value = progress.max;
-    $('previewStats').innerHTML = `<span class="pill ok">${done.created} created</span>`
-      + `<span class="pill">${done.skipped} skipped</span>`
-      + `<span class="pill ${done.failed ? 'bad' : ''}">${done.failed} failed</span>`;
+    $('previewStats').innerHTML = `<span class="pill ok">${totals.created} created</span>`
+      + `<span class="pill">${totals.skipped} skipped</span>`
+      + `<span class="pill ${totals.failed ? 'bad' : ''}">${totals.failed} failed</span>`;
   } catch (err) {
     showMsg('bad', err.message);
   } finally {

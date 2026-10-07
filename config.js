@@ -22,6 +22,14 @@ const MAX_CREDIT_LIMIT = 100;
 const LIMIT_RESET = null; // null | 'daily' | 'weekly' | 'monthly'
 const DELAY_MS = 500;     // pause between create requests
 
+// Web UI sign-in: only Google accounts in this domain that are also listed in ALLOWED_EMAILS.
+const ALLOWED_DOMAIN = 'interviewkickstart.com';
+const SESSION_HOURS = 12;
+
+// One web request stops creating keys after this long and the page continues in a new request,
+// so a big cohort stays inside Vercel's time limit (maxDuration in vercel.json).
+const RUN_TIME_LIMIT_MS = Number(process.env.RUN_TIME_LIMIT_MS) || 240000;
+
 const ROOT = __dirname;
 const paths = () => ({
   learnersCsv: process.env.LEARNERS_CSV || path.join(ROOT, 'learners.csv'),
@@ -29,4 +37,7 @@ const paths = () => ({
   logsDir: process.env.LOGS_DIR || path.join(ROOT, 'logs'),
 });
 
-module.exports = { PROGRAMS, REGIONS, CREDIT_LIMIT_CHOICES, MAX_CREDIT_LIMIT, LIMIT_RESET, DELAY_MS, ROOT, paths };
+module.exports = {
+  PROGRAMS, REGIONS, CREDIT_LIMIT_CHOICES, MAX_CREDIT_LIMIT, LIMIT_RESET, DELAY_MS,
+  ALLOWED_DOMAIN, SESSION_HOURS, RUN_TIME_LIMIT_MS, ROOT, paths,
+};

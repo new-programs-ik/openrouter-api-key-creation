@@ -10,6 +10,7 @@ const path = require('path');
 const { PROGRAMS, paths } = require('./config');
 const { loadDotEnv, describeLimit, buildKeyName, readLearners } = require('./lib/common');
 const { createClient, generateKeys } = require('./lib/openrouter');
+const { createFileStore } = require('./lib/storage');
 const { INTERACTIVE, askSettings, confirm } = require('./lib/prompts');
 
 loadDotEnv(path.join(__dirname, '.env'));
@@ -71,7 +72,9 @@ async function main() {
 
   const client = createClient({ baseUrl: BASE_URL, managementKey: MANAGEMENT_KEY });
   const summary = await generateKeys({
-    client, rows, program, region, cohort, limit, outputCsv: OUTPUT_CSV, logsDir: LOGS_DIR, onEvent: printEvent,
+    client, rows, program, region, cohort, limit,
+    store: createFileStore({ outputCsv: OUTPUT_CSV, logsDir: LOGS_DIR }),
+    onEvent: printEvent,
   });
   if (summary.failed > 0) {
     console.log(`See ${path.join(LOGS_DIR, 'errors.log')} for details.`);

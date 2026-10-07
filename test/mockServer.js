@@ -1,4 +1,5 @@
 // Fake OpenRouter Management API for tests. Listens on port 8787 by default.
+// Also fakes Google's token endpoint (POST /oauth/token) for the sign-in tests.
 //   node test/mockServer.js     run standalone
 const http = require('http');
 const crypto = require('crypto');
@@ -16,6 +17,7 @@ function createMockServer() {
     requests: [],
     createBodies: [],
     issuedKeys: [],
+    tokenRequests: [],
     keys: [
       { hash: 'hash-existing', name: 'US-004-mid-oct-existing@test.com', limit: 2, disabled: false, workspace_id: 'ws-swe' },
     ],
@@ -33,6 +35,21 @@ function createMockServer() {
       const url = new URL(req.url, 'http://localhost');
       const route = url.pathname.replace(/^\/api\/v1/, '');
       state.requests.push({ method: req.method, route, query: Object.fromEntries(url.searchParams) });
+
+      // Google: the "code" is base64url JSON of the ID token claims the test wants back.
+      if (req.method === 'POST' && route === '/oauth/token') {
+        const form = Object.fromEntries(new URLSearchParams(raw));
+        state.tokenRequests.push(form);
+        if (form.client_secret !== 'test-secret') return send(res, 401, { error: 'invalid_client' });
+        let claims;
+        try { claims = JSON.parse(Buffer.from(form.code, 'base64url').toString('utf8')); } catch { return send(res, 400, { error: 'invalid_grant' }); }
+        const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+        const payload = {
+          iss: 'https://accounts.google.com', aud: form.client_id, exp: Math.floor(Date.now() / 1000) + 3600,
+          email_verified: true, name: 'Test User', ...claims,
+        };
+        return send(res, 200, { access_token: 'x', id_token: `${b64({ alg: 'RS256' })}.${b64(payload)}.sig` });
+      }
 
       if (req.headers.authorization !== 'Bearer test') {
         return send(res, 401, { error: { code: 401, message: 'Invalid management key' } });

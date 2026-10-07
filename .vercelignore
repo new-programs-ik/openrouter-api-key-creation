@@ -1,0 +1,7 @@
+# Never upload secrets, learner lists or generated keys to Vercel.
+.env
+*.csv
+logs
+test
+node_modules
+.git
