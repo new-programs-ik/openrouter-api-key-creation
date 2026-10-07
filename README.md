@@ -1,7 +1,8 @@
 # OpenRouter Key Generator
 
 Creates one OpenRouter API key per learner from a list of email addresses, puts each key in the
-right workspace with a spending limit, and keeps a record of every key created.
+right workspace with a spending limit, and keeps a record of every key created. After you approve it, it
+can also email each learner their own key through the team's Make scenario (section 15).
 
 You can use it three ways:
 
@@ -318,6 +319,14 @@ store online.
 | "Stopped after 50 parts" | A very long list. Click **Preview** and **Generate** again; created keys are skipped. |
 | `Port 3000 is already in use` | The page is already running in another terminal. Use that one, or close it first. |
 | `COHORT is required` / `can only contain letters, numbers…` | Type a cohort name like `mid-oct`, using only letters, numbers, spaces and dashes. |
+| "Sending is not set up: MAKE_WEBHOOK_URL is not set" (Send buttons are off) | Add `MAKE_WEBHOOK_URL` and `MAKE_WEBHOOK_API_KEY` to `.env` (restart) or to the Vercel settings (redeploy). See section 15. |
+| `MAKE_WEBHOOK_URL must start with https://` | Copy the webhook address again from Make (**Copy address to clipboard**); it starts with `https://hook.`. |
+| `Make webhook returned HTTP 401` / `HTTP 403` | `MAKE_WEBHOOK_API_KEY` doesn't match the API key set on the webhook in Make. Fix one of them, then restart / redeploy. |
+| `Make webhook returned HTTP 410` / `HTTP 404` | The webhook was deleted or the address is wrong. Copy the address from the Make scenario again. |
+| `Make did not answer within 60 seconds` | The scenario took too long (usually Gmail). Look at the scenario's **History** in Make to see whether the email went out before sending to that learner again. |
+| `Make reported a failure: …` | The scenario replied `{"status":"failed"}`. Check the scenario's **History** in Make for the reason. |
+| Learner shows **Sent to Make**, not **Sent ✓** | Make accepted it but didn't confirm: the scenario has no **Webhook response** module (section 15, step 6), or the scenario is **OFF** (Make holds the email until it's turned on). Check in Make or Gmail that the email went out. |
+| "Email … but the record could not be saved. Stopped" | The email may have gone out but isn't recorded. Check Gmail's **Sent** folder for that learner before sending again; close `sent_keys_log.csv` if it's open in Excel. |
 | `'npm' is not recognized` | Node.js isn't installed, or the terminal was opened before installing it. Install Node.js and open a new terminal. |
 
 ---
@@ -330,6 +339,11 @@ store online.
 - The **Management key** can create and delete keys on the whole account. Keep it only in `.env` and in the
   Vercel settings. If it leaks, delete it at https://openrouter.ai/settings/management-keys, create a new one
   and update both places.
+- The **Make webhook address and API key** (`MAKE_WEBHOOK_URL`, `MAKE_WEBHOOK_API_KEY`) let anyone trigger key
+  emails from your Gmail. Keep them only in `.env` and the Vercel settings. If they leak, create a new API key
+  on the webhook in Make and update both places. The browser never sees them.
+- Key emails send live keys through Make and Gmail. Only the learner's own key goes to each learner. If the
+  Google Sheet log stores `api_key`, restrict who can open that sheet (or don't map `api_key` there).
 - Online, only people on `ALLOWED_EMAILS` can sign in. Keep the list short and remove people who leave.
 - `.gitignore` keeps `.env`, `learners.csv`, the output CSV and `logs/errors.log` out of Git, and
   `.vercelignore` keeps them from being uploaded to Vercel.
@@ -455,6 +469,20 @@ Make a copy first (scenario list → **⋯ → Clone**) so the old one keeps wor
 
 If an email fails (Make or Gmail returns an error), that learner shows **Failed** and is tried again the next
 time you send to them; the others carry on.
+
+The scenario can also report a failure itself: a Webhook response with body
+`{"status":"failed","message":"reason"}` marks that learner **Failed** with that reason (e.g. on an error
+handler route after the Gmail module).
+
+What the app expects back from Make:
+
+| Make replies | Page shows |
+|---|---|
+| `{"status":"sent"}` | **Sent ✓** |
+| `Accepted` (no Webhook response module) | **Sent to Make** |
+| `{"status":"failed","message":"…"}`, an HTTP error, or no answer in 60 seconds | **Failed** |
+
+Make problems and their fixes are in section 12.
 
 ---
 
