@@ -56,6 +56,12 @@
   .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
   .user form { margin: 0; }
+  .sendbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
+  .sent { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .sent.ok { color: var(--ok); }
+  .sent.queued { color: var(--accent); }
+  .sent.bad { color: var(--bad); }
+  .sent.none { color: var(--muted); font-weight: 500; }
 
   .steps { display: grid; gap: 20px; }
   .step label.title { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
@@ -354,7 +360,7 @@
           <div id="dropText"><b>Choose a CSV file</b> or drop it here. It needs an <code>email id</code> column.</div>
         </div>
         <input type="file" id="file" accept=".csv,text/csv" class="hidden">
-        <div class="example">Not sure of the format? <a href="data:text/csv;charset=utf-8,email%20id%0D%0Alearner.one%40example.com%0D%0Alearner.two%40example.com%0D%0A" download="learners.csv">Download the template (learners.csv)</a>, replace the sample emails with your learners' and upload it.</div>
+        <div class="example">Not sure of the format? <a href="data:text/csv;charset=utf-8,email%20id%2Cname%0D%0Alearner.one%40example.com%2CLearner%20One%0D%0Alearner.two%40example.com%2CLearner%20Two%0D%0A" download="learners.csv">Download the template (learners.csv)</a>, replace the sample rows with your learners (the <code>name</code> column is optional and is used in the key email) and upload it.</div>
         <div class="example" id="useFolderFile"></div>
       </div>
 
@@ -393,11 +399,22 @@
       <select id="fRegion" aria-label="Filter by region"><option value="">All regions</option></select>
       <select id="fCohort" aria-label="Filter by cohort"><option value="">All cohorts</option></select>
       <input id="fSearch" type="search" placeholder="Search email…" aria-label="Search email">
+      <label class="example" style="margin: 0;"><input type="checkbox" id="fUnsent"> Not emailed yet</label>
       <span class="example" id="keysCount"></span>
     </div>
-    <div class="tablewrap">
+    <div class="sendbar" id="sendBar">
+      <span id="selCount">No learners selected</span>
+      <button class="btn small primary" id="sendBtn" disabled>Send keys by email</button>
+      <button class="btn small" id="sendTestBtn">Send test email</button>
+      <span class="example" id="sendNote" style="margin: 0;"></span>
+    </div>
+    <div id="sendMsg"></div>
+    <div class="tablewrap" style="margin-top: 12px;">
       <table>
-        <thead><tr><th>#</th><th>Region</th><th>Program</th><th>Cohort</th><th>Email</th><th>API key</th><th>Key name</th></tr></thead>
+        <thead><tr>
+          <th><input type="checkbox" id="selAll" aria-label="Select all learners shown"></th>
+          <th>#</th><th>Region</th><th>Program</th><th>Cohort</th><th>Name</th><th>Email</th><th>Key email</th><th>API key</th><th>Key name</th>
+        </tr></thead>
         <tbody id="keysBody"></tbody>
       </table>
     </div>
@@ -412,7 +429,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const mask = (k) => (k ? `${k.slice(0, 14)}…` : '');
 
-const state = { config: null, csv: null, csvName: null, preview: null, previewKey: null, busy: false, keys: [], limitTouched: false };
+const state = { config: null, csv: null, csvName: null, preview: null, previewKey: null, busy: false, keys: [], limitTouched: false, sent: {}, selected: new Set() };
 
 async function api(path, options = {}) {
   const res = await fetch(path, { ...options, headers: { 'X-Requested-With': 'key-ui', 'Content-Type': 'application/json', ...(options.headers || {}) } });
@@ -684,10 +701,136 @@ async function generate() {
   }
 }
 
+// ---------- Sending keys by email (through Make) ----------
+// state.sent: latest email attempt per key hash, from /api/keys. state.selected: hashes ticked in the table.
+const wasSent = (s) => s && (s.status === 'sent' || s.status === 'queued');
+const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
+
+function sentHtml(hash) {
+  const s = state.sent[hash];
+  if (!s) return '<span class="sent none">Not sent</span>';
+  if (s.status === 'sent') return `<span class="sent ok" title="${esc(`Sent ${new Date(s.at).toLocaleString('en-GB')}${s.by ? ` by ${s.by}` : ''}`)}">Sent ✓ ${esc(shortDate(s.at))}</span>`;
+  if (s.status === 'queued') return `<span class="sent queued" title="Make accepted it; its Webhook response didn't confirm the email">Sent to Make ${esc(shortDate(s.at))}</span>`;
+  if (s.status === 'sending') return '<span class="sent queued">Sending…</span>';
+  return `<span class="sent bad" title="${esc(s.message || '')}">Failed ${esc(shortDate(s.at))}</span>`;
+}
+
+function updateSendBar() {
+  const n = state.selected.size;
+  const configured = state.config.send && state.config.send.configured;
+  $('selCount').textContent = n ? `${n} learner${n === 1 ? '' : 's'} selected` : 'No learners selected';
+  $('sendBtn').disabled = !configured || !n || state.busy;
+  $('sendBtn').textContent = n ? `Send ${n} key${n === 1 ? '' : 's'} by email` : 'Send keys by email';
+  $('sendTestBtn').disabled = !configured || state.busy;
+  $('sendNote').textContent = configured ? 'Tick learners (or filter, then tick the box at the top) and send. You confirm before anything is sent.'
+    : (state.config.send && state.config.send.problem) || 'Sending isn\'t set up yet: add MAKE_WEBHOOK_URL (see README).';
+  const shown = filteredKeys().filter((k) => k.KEY_HASH);
+  $('selAll').checked = shown.length > 0 && shown.every((k) => state.selected.has(k.KEY_HASH));
+}
+
+function setSentCell(hash) {
+  const cell = document.querySelector(`#keysBody td[data-sent="${CSS.escape(hash)}"]`);
+  if (cell) cell.innerHTML = sentHtml(hash);
+}
+
+// One /api/send call; updates rows as events stream in and returns the 'done' event.
+async function sendPart(body) {
+  const res = await api('/api/send', { method: 'POST', body: JSON.stringify(body) });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let done = null;
+  for (;;) {
+    const { value, done: end } = await reader.read();
+    if (end) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const e = JSON.parse(line);
+      if (e.type === 'processing') { state.sent[e.hash] = { status: 'sending' }; setSentCell(e.hash); }
+      else if (e.type === 'sent') { state.sent[e.hash] = { status: e.status, at: e.at }; setSentCell(e.hash); }
+      else if (e.type === 'failed') { state.sent[e.hash] = { status: 'failed', at: new Date().toISOString(), message: e.message }; setSentCell(e.hash); }
+      else if (e.type === 'done') done = e;
+      else if (e.type === 'error') throw new Error(e.message);
+    }
+  }
+  if (!done) throw new Error('The connection closed before sending finished. Refresh to see what was sent.');
+  return done;
+}
+
+async function sendSelected() {
+  const chosen = state.keys.filter((k) => state.selected.has(k.KEY_HASH));
+  if (!chosen.length) return;
+  const already = chosen.filter((k) => wasSent(state.sent[k.KEY_HASH]));
+  const fresh = chosen.length - already.length;
+  const groups = {};
+  for (const k of chosen) { const g = `${k.PROGRAM} · ${k.REGION} · ${k.COHORT}`; groups[g] = (groups[g] || 0) + 1; }
+  const list = Object.entries(groups).map(([g, n]) => `  ${g}: ${n}`).join('\n');
+  const noNames = chosen.filter((k) => !k.LEARNER_NAME).length;
+  const nameNote = noNames ? `\n\n${noNames} of them have no name saved; the email will use your Make template's fallback greeting.` : '';
+
+  let resend = false;
+  if (fresh === 0) {
+    if (!confirm(`All ${chosen.length} selected learner(s) were already emailed their key.\n\nSend their keys AGAIN?\n\n${list}`)) return;
+    resend = true;
+  } else if (!confirm(`Email ${fresh} learner(s) their own API key through Make?\n\n${list}${nameNote}`
+    + (already.length ? `\n\n${already.length} already emailed will be skipped.` : ''))) {
+    return;
+  }
+
+  state.busy = true; updateSendBar(); refreshControls();
+  const msg = (kind, text) => { $('sendMsg').innerHTML = `<div class="msg ${kind}">${esc(text)}</div>`; };
+  msg('info', 'Sending… keep this tab open.');
+  const totals = { sent: 0, queued: 0, skipped: 0, failed: 0 };
+  try {
+    const hashes = chosen.map((k) => k.KEY_HASH);
+    for (let part = 1, startAt = 0; ; part++) {
+      const done = await sendPart({ hashes, resend, startAt });
+      for (const k of Object.keys(totals)) totals[k] += done[k];
+      if (done.nextIndex === null || done.nextIndex === undefined) break;
+      if (part >= 50) throw new Error('Stopped after 50 parts. Select the learners not emailed yet and send again.');
+      startAt = done.nextIndex;
+      msg('info', `Sending… part ${part + 1} (big list, continuing automatically). Keep this tab open.`);
+    }
+    const parts = [`${totals.sent} sent`];
+    if (totals.queued) parts.push(`${totals.queued} handed to Make (not confirmed: add a Webhook response to the scenario)`);
+    if (totals.skipped) parts.push(`${totals.skipped} skipped (already emailed)`);
+    parts.push(`${totals.failed} failed`);
+    msg(totals.failed ? 'warn' : 'ok', `Done: ${parts.join(', ')}.${totals.failed ? ' Hover over "Failed" for the reason.' : ''}`);
+    state.selected.clear();
+  } catch (err) {
+    msg('bad', err.message);
+  } finally {
+    state.busy = false;
+    refreshControls();
+    loadKeys();
+  }
+}
+
+async function sendTestEmail() {
+  let email = state.config.user ? state.config.user.email : '';
+  if (!email) {
+    email = (prompt('Send a test email (with a fake key) to which address?') || '').trim();
+    if (!email) return;
+  } else if (!confirm(`Send a test email with a FAKE key to ${email}?\n\nUse it to map the fields in Make and check the email text.`)) {
+    return;
+  }
+  try {
+    const r = await (await api('/api/send-test', { method: 'POST', body: JSON.stringify({ email }) })).json();
+    $('sendMsg').innerHTML = `<div class="msg ok">${esc(r.status === 'sent'
+      ? `Test email sent to ${r.email}.`
+      : `Make accepted the test for ${r.email}. Check the scenario's history; add a Webhook response returning {"status":"sent"} to get a confirmation here.`)}</div>`;
+  } catch (err) {
+    $('sendMsg').innerHTML = `<div class="msg bad">${esc(err.message)}</div>`;
+  }
+}
+
 function filteredKeys() {
-  const f = { p: $('fProgram').value, r: $('fRegion').value, c: $('fCohort').value, q: $('fSearch').value.trim().toLowerCase() };
+  const f = { p: $('fProgram').value, r: $('fRegion').value, c: $('fCohort').value, q: $('fSearch').value.trim().toLowerCase(), unsent: $('fUnsent').checked };
   return state.keys.filter((k) => (!f.p || k.PROGRAM === f.p) && (!f.r || k.REGION === f.r)
-    && (!f.c || k.COHORT === f.c) && (!f.q || String(k.EMAIL_ID).includes(f.q)));
+    && (!f.c || k.COHORT === f.c) && (!f.q || String(k.EMAIL_ID).includes(f.q) || String(k.LEARNER_NAME || '').toLowerCase().includes(f.q))
+    && (!f.unsent || !wasSent(state.sent[k.KEY_HASH])));
 }
 
 function fillFilter(id, values, label) {
@@ -701,23 +844,29 @@ function renderKeys() {
   const rows = filteredKeys();
   $('keysCount').textContent = `${rows.length} of ${state.keys.length} key${state.keys.length === 1 ? '' : 's'}`;
   $('keysBody').innerHTML = rows.length ? rows.map((k) => `
-    <tr><td>${esc(k.SERIAL)}</td><td>${esc(k.REGION)}</td><td>${esc(k.PROGRAM)}</td><td>${esc(k.COHORT)}</td>
-      <td>${esc(k.EMAIL_ID)}</td>
+    <tr><td>${k.KEY_HASH ? `<input type="checkbox" data-select="${esc(k.KEY_HASH)}" ${state.selected.has(k.KEY_HASH) ? 'checked' : ''} aria-label="Select ${esc(k.EMAIL_ID)}">` : ''}</td>
+      <td>${esc(k.SERIAL)}</td><td>${esc(k.REGION)}</td><td>${esc(k.PROGRAM)}</td><td>${esc(k.COHORT)}</td>
+      <td>${esc(k.LEARNER_NAME || '')}</td><td>${esc(k.EMAIL_ID)}</td>
+      <td data-sent="${esc(k.KEY_HASH || '')}">${k.KEY_HASH ? sentHtml(k.KEY_HASH) : ''}</td>
       <td class="mono">${esc(mask(k.API_KEY))} <button class="btn small" data-copy="${esc(k.API_KEY)}">Copy</button></td>
       <td class="mono">${esc(k.KEY_NAME)}</td></tr>`).join('')
-    : `<tr><td colspan="7" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
+    : `<tr><td colspan="10" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
+  updateSendBar();
 }
 
 async function loadKeys() {
   try {
     const data = await (await api('/api/keys')).json();
     state.keys = data.rows;
+    state.sent = data.sent || {};
+    const known = new Set(state.keys.map((k) => k.KEY_HASH));
+    for (const h of [...state.selected]) if (!known.has(h)) state.selected.delete(h);
     fillFilter('fProgram', state.keys.map((k) => k.PROGRAM), 'All programs');
     fillFilter('fRegion', state.keys.map((k) => k.REGION), 'All regions');
     fillFilter('fCohort', state.keys.map((k) => k.COHORT), 'All cohorts');
     renderKeys();
   } catch (err) {
-    $('keysBody').innerHTML = `<tr><td colspan="7" class="empty">${esc(err.message)}</td></tr>`;
+    $('keysBody').innerHTML = `<tr><td colspan="10" class="empty">${esc(err.message)}</td></tr>`;
   }
 }
 
@@ -1186,7 +1335,19 @@ function setupUsage() {
   $('generateBtn').onclick = generate;
   $('refreshBtn').onclick = loadKeys;
   $('downloadBtn').onclick = downloadCsv;
-  ['fProgram', 'fRegion', 'fCohort', 'fSearch'].forEach((id) => $(id).addEventListener('input', renderKeys));
+  ['fProgram', 'fRegion', 'fCohort', 'fSearch', 'fUnsent'].forEach((id) => $(id).addEventListener('input', renderKeys));
+  $('sendBtn').onclick = sendSelected;
+  $('sendTestBtn').onclick = sendTestEmail;
+  $('selAll').addEventListener('change', () => {
+    for (const k of filteredKeys()) if (k.KEY_HASH) { if ($('selAll').checked) state.selected.add(k.KEY_HASH); else state.selected.delete(k.KEY_HASH); }
+    renderKeys();
+  });
+  $('keysBody').addEventListener('change', (e) => {
+    const hash = e.target.dataset && e.target.dataset.select;
+    if (!hash) return;
+    if (e.target.checked) state.selected.add(hash); else state.selected.delete(hash);
+    updateSendBar();
+  });
   $('keysBody').addEventListener('click', async (e) => {
     const key = e.target.dataset && e.target.dataset.copy;
     if (!key) return;

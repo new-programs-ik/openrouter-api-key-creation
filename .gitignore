@@ -6,3 +6,5 @@ logs/errors.log
 .vercel/
 .vercel
 .env*
+sent_keys_log.csv
+*.before-learner-name*.csv

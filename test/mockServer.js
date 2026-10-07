@@ -19,6 +19,7 @@ function createMockServer() {
     issuedKeys: [],
     tokenRequests: [],
     analyticsQueries: [],
+    makeCalls: [], // POST /make-hook bodies (the x-make-apikey header is checked)
     // Usage events for POST /analytics/query: { workspace_id, key (key name), model, month: 'YYYY-MM', cost, requests, tokens }
     analytics: [],
     keys: [
@@ -59,6 +60,18 @@ function createMockServer() {
           email_verified: true, name: 'Test User', ...claims,
         };
         return send(res, 200, { access_token: 'x', id_token: `${b64({ alg: 'RS256' })}.${b64(payload)}.sig` });
+      }
+
+      // Fake Make custom webhook: "bounce@" fails, "accepted@" gets Make's plain "Accepted" (no Webhook response
+      // module), everything else gets {"status":"sent"} like a scenario ending in a Webhook response.
+      if (req.method === 'POST' && url.pathname === '/make-hook') {
+        if (req.headers['x-make-apikey'] !== 'make-test-key') { res.writeHead(401); return res.end('Unauthorized'); }
+        let body;
+        try { body = JSON.parse(raw || '{}'); } catch { res.writeHead(400); return res.end('Bad JSON'); }
+        state.makeCalls.push(body);
+        if (String(body.email).includes('bounce@')) { res.writeHead(500); return res.end('Gmail: Invalid recipient'); }
+        if (String(body.email).includes('accepted@')) { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('Accepted'); }
+        return send(res, 200, { status: 'sent' });
       }
 
       if (req.headers.authorization !== 'Bearer test') {

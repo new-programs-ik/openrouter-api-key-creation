@@ -27,6 +27,7 @@ plain language.
 | `lib/auth.js` | Google sign-in (OAuth code flow) and the signed session cookie |
 | `lib/usage.js` | Usage tab data (`GET /api/usage`): every program workspace's keys with spend; cohort/email from saved records by hash, else parsed from the name (`parseKeyName` + `chooseSplits`, since cohorts and emails can both contain dashes) |
 | `lib/trends.js` | Usage tab trends (`GET /api/trends?months=1..12`): per program workspace, `POST /analytics/query` by key per month and by key × model. Analytics reports keys by **name** (`api_key_id`), so the page joins on program + key name. Limits: 367-day range, 10,000 rows |
+| `lib/send.js` | Emails keys through a Make custom webhook (`MAKE_WEBHOOK_URL`, `MAKE_WEBHOOK_API_KEY` as `x-make-apikey`): one call per learner, result recorded in the store's sent log (`SENT_COLUMNS`), `{"status":"sent"}` reply = confirmed, plain `Accepted` = queued |
 | `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
 | `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN). Interview Kickstart look: colour tokens on `:root` (navy `#324158` text, IK blues `#3996d2`/`#49a9f8`, accent `#1769b8` chosen for 4.5:1 text contrast), dark mode via `prefers-color-scheme`, keep both pages' tokens in sync |
 | `web/fonts/` | Inter (latin, variable 400–700) served at `/fonts/Inter-latin.woff2` without sign-in; SIL OFL licence in `OFL.txt` |
@@ -45,9 +46,12 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
   - Email trimmed + lowercased, validated with `^[^\s@]+@[^\s@]+\.[^\s@]+$`; duplicates keep the first.
 - **Skip existing:** a learner is skipped if a key in the program's workspace matches region + cohort + email
   exactly (any serial). Use the full-name regex in `findExistingKeyName`; a suffix match would treat cohort `oct` as `mid-oct`.
-- **Output CSV columns are fixed:** `SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH`.
-  The user's real file already uses them; the appender refuses a file whose header differs. Don't change
-  the columns without a migration. The header is written only when the file is new; each row is written right after its key is created.
+- **Output CSV columns are fixed:** `SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH,LEARNER_NAME`.
+  `LEARNER_NAME` was added with a migration (`migrateAddNameColumn`: backs up to `*.before-learner-name.csv`, then adds
+  an empty column). The appender refuses any other header. Don't change the columns without a migration. The header
+  is written only when the file is new; each row is written right after its key is created.
+- **Learner name:** optional `name` / `learner name` / `full name` column in the learners CSV; cleaned, max 100 chars,
+  never part of the key name.
 - **Stores:** `generateKeys` saves through a store (`lib/storage.js`); `store.startRun()` must fail before any key
   is created if saving can't work. The Blob store writes one CSV per run under `keys/`, same columns, rewritten
   after every key, always `access: 'private'`. Never store keys in a public blob.
@@ -56,6 +60,11 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
 - **Usage tab is read-only:** `/api/usage` only lists keys (GET) and `/api/trends` only calls `POST /analytics/query`;
   never add writes there (tests assert both). OpenRouter's key list has
   no secrets, keep it that way (tests assert no `sk-or-` in the response). Aggregation happens in the page.
+- **Sending keys (`/api/send`):** only after the person confirms in the page; the page sends key hashes, the server
+  looks up the keys and calls Make, so the webhook URL/key never reach the browser. Skip learners already sent
+  (sent/queued) unless `resend`; record every attempt before the next; stop if a record can't be saved. Online, the
+  test email (`/api/send-test`) always goes to the signed-in user. Keys go to Make (that's the point) but never into
+  logs or the progress stream.
 - **Never print or stream a full API key.** Console and web progress show the first 14 characters only
   (`maskKey`). Full keys exist only in the output CSV and the `/api/keys` response for the local page.
 - **Credit limit:** per run (UI choice / CLI question / `CREDIT_LIMIT`), defaults to the program's

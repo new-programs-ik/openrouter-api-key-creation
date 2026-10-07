@@ -131,6 +131,8 @@ priya.s@outlook.com
 - Easiest: on the web page, click **Download the template (learners.csv)**, replace the two sample emails, and save.
 - In Excel: put `email id` in cell A1, emails below it, then **File → Save As → "CSV UTF-8 (Comma delimited)"**.
 - The column can also be called `email_id` or `email`. Capitals and extra spaces don't matter.
+- Optional **`name`** column (or `learner name` / `full name`): saved with the key and used to greet the
+  learner in the key email (section 15). It is not part of the key name.
 - Use **one CSV per program** per run.
 - Blank rows are ignored. Invalid emails and repeated emails are reported (and logged) but don't stop the run.
 
@@ -246,7 +248,8 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`. These settings last until you clos
    upload that program's CSV, **Preview**, then **Generate**.
 4. Check the summary. If anything failed, read the message on the page (details: Vercel **Logs** online,
    `logs/errors.log` on your computer), fix the CSV and run again. Learners that already have a key are skipped.
-5. Share each learner's key with them privately (e.g. filter **Generated keys** by cohort and copy).
+5. Email each learner their key: filter **Generated keys** by cohort, tick the learners and click **Send keys by email**
+   (section 15). Or copy keys one by one and share them privately.
 
 Use **one place** per cohort, online or your computer, not both: each keeps its own list of keys
 (OpenRouter still prevents duplicates either way).
@@ -283,8 +286,15 @@ key is made. Problems are written to `logs/errors.log`.
 Both use the same columns:
 
 ```
-SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH
+SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH,LEARNER_NAME
 ```
+
+`LEARNER_NAME` was added later. The first time you create keys after updating, an older
+`generated_openrouter_keys.csv` gets the new (empty) column automatically, and a copy of the old file is kept
+as `generated_openrouter_keys.before-learner-name.csv`.
+
+Key emails sent (section 15) are recorded in `sent_keys_log.csv` on your computer, or in the same private Blob
+store online.
 
 ---
 
@@ -357,6 +367,8 @@ Online, the page differs from the local one in three ways:
 | `SESSION_SECRET` | 32+ random characters (see below) |
 | `ALLOWED_EMAILS` | comma-separated, e.g. `you@interviewkickstart.com,teammate@interviewkickstart.com` |
 | `APP_URL` | `https://openrouter-key-generator.vercel.app` |
+| `MAKE_WEBHOOK_URL` | the Make custom webhook address (section 15); without it the Send buttons stay off |
+| `MAKE_WEBHOOK_API_KEY` | the API key set on that webhook in Make |
 | `BLOB_READ_WRITE_TOKEN` | added by Vercel when the Blob store was connected; don't edit |
 
 To make a new `SESSION_SECRET` (this signs everyone out):
@@ -396,6 +408,53 @@ npx vercel deploy --prod
 Add `http://localhost:3000/auth/callback` to the Google app's **Authorized redirect URIs**, put
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET` and `ALLOWED_EMAILS` in `.env`, and run
 `npm run web`. Leave them out to use the local page without signing in.
+
+---
+
+## 15. Sending keys by email (Make)
+
+The page can email each learner their own key through your Make scenario, after you approve it:
+
+1. In **Generated keys**, filter (e.g. by cohort; tick **Not emailed yet** to hide people already done) and tick
+   the learners, or tick the box at the top of the table to select everyone shown.
+2. Click **Send N keys by email**. A summary (how many, which program/cohort) asks you to confirm. Nothing is
+   sent before you click OK.
+3. The page sends the learners one by one and the **Key email** column changes to **Sent ✓**, **Sent to Make**
+   (accepted, but the scenario didn't confirm) or **Failed** (hover for the reason). Keep the tab open.
+
+Learners already emailed are skipped. Selecting only people who were already emailed asks whether to send
+their keys **again**. **Send test email** sends one email with a **fake** key to you, to set up and check the
+scenario.
+
+The app sends Make, for each learner: `email`, `name` (may be empty), `api_key`, `key_name`, `program`
+(e.g. SWE), `program_id` (e.g. swe), `region`, `cohort`, `sent_by` (who clicked Send) and `test` (true only for
+the test email).
+
+### Changing the Make scenario (once)
+
+Today the scenario is *Google Sheets: Search Rows → Gmail: Send an email → Google Sheets: Update a Row*.
+Make a copy first (scenario list → **⋯ → Clone**) so the old one keeps working while you switch.
+
+1. **Trigger.** Delete *Google Sheets: Search Rows*. Add **Webhooks → Custom webhook** as the first module →
+   **Add** → name it `OpenRouter keys`. Under **API Key authentication** (advanced settings) add a key and copy it.
+   Save, then **Copy address to clipboard**: that's the webhook URL.
+2. **Tell the app.** Vercel project → **Settings → Environment Variables**, add `MAKE_WEBHOOK_URL` (the address)
+   and `MAKE_WEBHOOK_API_KEY` (the key), then **Redeploy**. (On your computer: add both lines to `.env`.)
+3. **Teach Make the fields.** In the webhook module click **Redetermine data structure**, then in the app click
+   **Send test email**. Make shows "Successfully determined".
+4. **Gmail: Send an email.** Map **To** = `email`. In the text use `api_key`, `program`, `cohort`, and for the
+   greeting `{{if(name; name; "there")}}` so learners without a name get "Hi there".
+5. **Google Sheets.** Replace *Update a Row* with **Add a Row** to keep the sheet as a sent log: map `email`,
+   `name`, `key_name`, `program`, `cohort`, `sent_by`, `test` and `{{now}}`. (Storing `api_key` in the sheet is
+   optional; the app already keeps the keys.)
+6. **Webhooks → Webhook response** as the last module: status `200`, body `{"status":"sent"}`, and a header
+   `Content-Type: application/json`. This is how the app knows the email really went out. Without it, rows show
+   **Sent to Make** instead of **Sent ✓**.
+7. Turn the scenario **ON** with **Immediately as data arrives** scheduling. Send a test email again and check
+   it arrives, then try one real learner before a whole cohort.
+
+If an email fails (Make or Gmail returns an error), that learner shows **Failed** and is tried again the next
+time you send to them; the others carry on.
 
 ---
 
