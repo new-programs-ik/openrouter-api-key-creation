@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenRouter Key Generator</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #616b76; --border: #dfe3e8;
+    --accent: #3b5bdb; --accent-text: #ffffff; --accent-soft: #e7ecff;
+    --ok: #1f7a4d; --ok-soft: #e3f4ea; --warn: #8a5a00; --warn-soft: #fdf1d8;
+    --bad: #b42318; --bad-soft: #fde7e5; --info-soft: #eef1f5;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --panel: #1a1e24; --text: #e6e9ed; --muted: #9aa4af; --border: #2c323a;
+      --accent: #7c96ff; --accent-text: #0d1020; --accent-soft: #232b48;
+      --ok: #5fd39a; --ok-soft: #173225; --warn: #f2c063; --warn-soft: #3a2f16;
+      --bad: #ff8a80; --bad-soft: #3d1d1b; --info-soft: #232830;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--border); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  main { padding: 24px 0 60px; display: grid; gap: 24px; }
+  section.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--info-soft); color: var(--muted); }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .steps { display: grid; gap: 20px; }
+  .step label.title { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+  .step .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; margin-right: 6px; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .choice { position: relative; display: block; }
+  .choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .choice .box { display: block; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; height: 100%; }
+  .choice .box b { display: block; }
+  .choice .box small { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .choice input:checked + .box { border-color: var(--accent); background: var(--accent-soft); }
+  .choice input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg { display: inline-flex; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg .choice .box { border: 0; border-radius: 0; padding: 8px 22px; font-weight: 600; }
+  .seg .choice + .choice .box { border-left: 1.5px solid var(--border); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  select, input[type=number], input[type=search] { font: inherit; color: var(--text); background: var(--panel); border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+  input[type=number] { width: 100px; }
+  input.text { font: inherit; color: var(--text); background: var(--panel); border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; width: min(420px, 100%); }
+  input.text:focus, select:focus, input[type=number]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .fielderr { font-size: 13px; color: var(--bad); margin-top: 6px; min-height: 0; }
+  .fielderr:empty { display: none; }
+  .fielderr.warn { color: var(--warn); }
+  .step label.title .example { font-weight: 400; margin-left: 6px; }
+  .example { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .example code { font-family: var(--mono); color: var(--text); background: var(--info-soft); padding: 2px 6px; border-radius: 5px; word-break: break-all; }
+
+  .drop { border: 1.5px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.hover { border-color: var(--accent); background: var(--accent-soft); }
+  .drop b { color: var(--text); }
+  .linkbtn { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+
+  button.btn { font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1.5px solid var(--border); background: var(--panel); color: var(--text); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  button.small { font-size: 13px; padding: 4px 10px; font-weight: 500; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+
+  .msg { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-top: 14px; white-space: pre-wrap; }
+  .msg.bad { background: var(--bad-soft); color: var(--bad); }
+  .msg.warn { background: var(--warn-soft); color: var(--warn); }
+  .msg.ok { background: var(--ok-soft); color: var(--ok); }
+  .msg.info { background: var(--info-soft); color: var(--muted); }
+
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 10px; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; max-height: 420px; overflow-y: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: 0; }
+  td.mono { font-family: var(--mono); font-size: 12.5px; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .badge.new, .badge.created { background: var(--ok-soft); color: var(--ok); }
+  .badge.exists, .badge.skipped { background: var(--info-soft); color: var(--muted); }
+  .badge.problem, .badge.failed { background: var(--bad-soft); color: var(--bad); }
+  .badge.working { background: var(--accent-soft); color: var(--accent); }
+  td.note { white-space: normal; color: var(--muted); min-width: 200px; }
+
+  progress { width: 100%; height: 10px; accent-color: var(--accent); }
+  .empty { padding: 28px; text-align: center; color: var(--muted); }
+  .hidden { display: none !important; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>OpenRouter Key Generator</h1>
+    <span id="keyStatus" class="pill">Checking…</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" id="createCard">
+    <h2>Create keys</h2>
+    <p class="sub">One key per learner email. Existing keys for the same region, cohort and email are skipped, so it's safe to run again.</p>
+
+    <div class="steps">
+      <div class="step">
+        <label class="title"><span class="num">1</span>Program</label>
+        <div class="choices" id="programs"></div>
+      </div>
+
+      <div class="step">
+        <label class="title"><span class="num">2</span>Region</label>
+        <div class="seg" id="regions"></div>
+      </div>
+
+      <div class="step">
+        <label class="title" for="cohort"><span class="num">3</span>Cohort</label>
+        <input id="cohort" type="text" class="text" placeholder="e.g. early-oct, mid-oct, end-oct" autocomplete="off" maxlength="60">
+        <div class="example">Key names will look like <code id="exampleName"></code></div>
+        <div class="fielderr" id="cohortErr"></div>
+      </div>
+
+      <div class="step">
+        <label class="title"><span class="num">4</span>Credit limit per key<span class="example" id="limitReset"></span></label>
+        <div class="row">
+          <div class="seg" id="limits"></div>
+          <input id="customLimit" type="number" min="0.01" step="0.01" placeholder="USD" class="hidden" aria-label="Custom credit limit in USD">
+        </div>
+        <div class="fielderr" id="limitNote"></div>
+      </div>
+
+      <div class="step">
+        <label class="title"><span class="num">5</span>Learners CSV</label>
+        <div class="drop" id="drop" tabindex="0" role="button">
+          <div id="dropText"><b>Choose a CSV file</b> or drop it here. It needs an <code>email id</code> column.</div>
+        </div>
+        <input type="file" id="file" accept=".csv,text/csv" class="hidden">
+        <div class="example" id="useFolderFile"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="previewBtn" disabled>Preview</button>
+        <button class="btn primary" id="generateBtn" disabled>Generate keys</button>
+        <span class="example" id="actionHint">Choose a program, region and CSV file, then preview.</span>
+      </div>
+    </div>
+
+    <div id="createMsg"></div>
+
+    <div id="previewArea" class="hidden">
+      <div class="stats" id="previewStats"></div>
+      <progress id="progress" class="hidden" value="0" max="1"></progress>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>#</th><th>Key name</th><th>Status</th><th>Details</th></tr></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content: space-between; margin-bottom: 4px;">
+      <h2>Generated keys</h2>
+      <div class="row">
+        <button class="btn small" id="refreshBtn">Refresh</button>
+        <button class="btn small" id="downloadBtn">Download CSV</button>
+      </div>
+    </div>
+    <p class="sub">Everything in <code id="outputFile">generated_openrouter_keys.csv</code>. These are live keys: don't share this list.</p>
+    <div class="row" style="margin-bottom: 12px;">
+      <select id="fProgram" aria-label="Filter by program"><option value="">All programs</option></select>
+      <select id="fRegion" aria-label="Filter by region"><option value="">All regions</option></select>
+      <select id="fCohort" aria-label="Filter by cohort"><option value="">All cohorts</option></select>
+      <input id="fSearch" type="search" placeholder="Search email…" aria-label="Search email">
+      <span class="example" id="keysCount"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>Region</th><th>Program</th><th>Cohort</th><th>Email</th><th>API key</th><th>Key name</th></tr></thead>
+        <tbody id="keysBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mask = (k) => (k ? `${k.slice(0, 14)}…` : '');
+
+const state = { config: null, csv: null, csvName: null, preview: null, previewKey: null, busy: false, keys: [], limitTouched: false };
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { ...options, headers: { 'X-Requested-With': 'key-ui', 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+function toast(text) {
+  const t = $('toast'); t.textContent = text; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+function showMsg(kind, text) {
+  $('createMsg').innerHTML = text ? `<div class="msg ${kind}">${esc(text)}</div>` : '';
+}
+
+const radioValue = (name) => (document.querySelector(`input[name=${name}]:checked`) || {}).value || '';
+
+// Same rules as normalizeCohort/resolveCohort in lib/common.js.
+const normalizeCohort = (v) => String(v || '').trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+function cohortError(raw, cohort) {
+  if (!raw.trim()) return 'Required, e.g. early-oct, mid-oct or end-oct.';
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(cohort)) return 'Use only letters, numbers, spaces and dashes.';
+  if (cohort.length > 40) return 'Too long (max 40 characters).';
+  return '';
+}
+
+const formatLimit = (v) => (v === 'none' ? 'no limit' : `$${v}`);
+function limitValue() {
+  const v = radioValue('limit');
+  return v === 'custom' ? $('customLimit').value.trim() : v;
+}
+function limitError(v) {
+  if (!v) return 'Choose a credit limit.';
+  if (v === 'none') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > state.config.maxLimit) return `Enter an amount between $0.01 and $${state.config.maxLimit}.`;
+  return '';
+}
+
+const settings = () => ({
+  program: radioValue('program'),
+  region: radioValue('region'),
+  cohort: normalizeCohort($('cohort').value),
+  limit: limitValue(),
+});
+const settingsKey = () => JSON.stringify({ ...settings(), csv: state.csv });
+
+// Select the program's default limit until the user picks one themselves.
+function applyDefaultLimit() {
+  if (state.limitTouched) return;
+  const program = state.config.programs.find((p) => p.id === radioValue('program'));
+  if (!program) return;
+  const def = program.creditLimit === null ? 'none' : String(program.creditLimit);
+  const preset = document.querySelector(`input[name=limit][value="${def}"]`);
+  if (preset) preset.checked = true;
+  else { document.querySelector('input[name=limit][value=custom]').checked = true; $('customLimit').value = def; }
+}
+
+function refreshControls() {
+  const s = settings();
+  const cErr = cohortError($('cohort').value, s.cohort);
+  $('cohortErr').textContent = $('cohort').value ? cErr : '';
+  $('exampleName').textContent = `${s.region || 'US'}-001-${s.cohort || '<cohort>'}-learner@example.com`;
+
+  $('customLimit').classList.toggle('hidden', radioValue('limit') !== 'custom');
+  const lErr = limitError(s.limit);
+  const note = $('limitNote');
+  note.textContent = s.limit === 'none' ? 'No limit: one learner could spend your whole OpenRouter balance.'
+    : (radioValue('limit') === 'custom' && s.limit ? lErr : '');
+  note.className = `fielderr ${s.limit === 'none' ? 'warn' : ''}`;
+
+  const ready = s.program && s.region && !cErr && !lErr && state.csv;
+  const fresh = state.preview && state.previewKey === settingsKey();
+  $('previewBtn').disabled = !ready || state.busy;
+  const toCreate = fresh ? state.preview.counts.toCreate : 0;
+  $('generateBtn').disabled = !fresh || state.busy || !state.config.keyConfigured || toCreate === 0;
+  $('generateBtn').textContent = fresh && toCreate ? `Generate ${toCreate} key${toCreate === 1 ? '' : 's'}` : 'Generate keys';
+  let hint = '';
+  if (!ready) hint = 'Fill in all the steps above, then preview.';
+  else if (state.previewKey === 'ran') hint = 'Run finished. Preview again before generating more.';
+  else if (!fresh) hint = state.preview ? 'Settings changed. Preview again.' : 'Preview to check the key names first.';
+  else if (!state.config.keyConfigured) hint = 'Add OPENROUTER_MANAGEMENT_KEY to .env and restart to generate.';
+  else if (!toCreate) hint = 'Nothing new to create.';
+  $('actionHint').textContent = state.busy ? 'Working…' : hint;
+}
+
+function renderSetup(config) {
+  $('programs').innerHTML = config.programs.map((p) => `
+    <label class="choice"><input type="radio" name="program" value="${esc(p.id)}">
+      <span class="box"><b>${esc(p.label)}</b><small>${esc(p.workspaceSlug)}</small><br>
+      <small>default ${p.creditLimit === null ? 'no limit' : `$${p.creditLimit} limit`}</small></span></label>`).join('');
+  $('regions').innerHTML = config.regions.map((r) => `
+    <label class="choice"><input type="radio" name="region" value="${esc(r)}"><span class="box">${esc(r)}</span></label>`).join('');
+  const limitOptions = [...config.limitChoices.map((v) => [String(v), `$${v}`]), ['custom', 'Other'], ['none', 'No limit']];
+  $('limits').innerHTML = limitOptions.map(([v, label]) => `
+    <label class="choice"><input type="radio" name="limit" value="${v}"><span class="box">${label}</span></label>`).join('');
+  $('limits').addEventListener('change', () => { state.limitTouched = true; });
+  $('customLimit').addEventListener('input', () => { state.limitTouched = true; });
+  $('programs').addEventListener('change', applyDefaultLimit);
+  $('limitReset').textContent = config.limitReset ? ` Limits reset ${config.limitReset}.` : '';
+  $('outputFile').textContent = config.outputFile;
+  if (config.learnersFile) {
+    $('useFolderFile').innerHTML = `or <button class="linkbtn" id="useFolderBtn">use ${esc(config.learnersFile)} from the project folder</button>`;
+    $('useFolderBtn').onclick = async () => {
+      try {
+        const data = await (await api('/api/learners-file')).json();
+        setCsv(data.csv, data.name);
+      } catch (err) { showMsg('bad', err.message); }
+    };
+  }
+  const ks = $('keyStatus');
+  ks.className = `pill ${config.keyConfigured ? 'ok' : 'bad'}`;
+  ks.textContent = config.keyConfigured ? 'Management key loaded' : 'Management key missing';
+  document.querySelectorAll('#createCard input, #createCard select').forEach((el) => el.addEventListener('input', refreshControls));
+}
+
+function setCsv(text, name) {
+  state.csv = text;
+  state.csvName = name;
+  const rows = text.split(/\r?\n/).filter((l) => l.trim()).length - 1;
+  $('dropText').innerHTML = `<b>${esc(name)}</b> · ${Math.max(rows, 0)} row(s). Click to choose a different file.`;
+  showMsg('', '');
+  refreshControls();
+}
+
+function setupDrop() {
+  const drop = $('drop');
+  const file = $('file');
+  const readFile = (f) => {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setCsv(String(reader.result), f.name);
+    reader.readAsText(f);
+  };
+  drop.onclick = () => file.click();
+  drop.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } };
+  file.onchange = () => { readFile(file.files[0]); file.value = ''; };
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('hover'); };
+  drop.ondragleave = () => drop.classList.remove('hover');
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('hover'); readFile(e.dataTransfer.files[0]); };
+}
+
+const STATUS_TEXT = { new: 'New', exists: 'Already exists', problem: 'Problem', created: 'Created', skipped: 'Skipped', failed: 'Failed', working: 'Creating…' };
+
+function rowHtml(r) {
+  const name = r.keyName || r.value;
+  return `<tr id="row-${r.serial}"><td>${String(r.serial).padStart(3, '0')}</td>
+    <td class="mono">${esc(name)}</td>
+    <td><span class="badge ${r.status}">${STATUS_TEXT[r.status]}</span></td>
+    <td class="note">${esc(r.note || (r.status === 'exists' ? `as ${r.existing}` : r.message || ''))}</td></tr>`;
+}
+
+function setRow(serial, status, note) {
+  const r = state.preview.rows.find((x) => x.serial === serial);
+  if (!r) return;
+  Object.assign(r, { status, note });
+  const tr = $(`row-${serial}`);
+  if (tr) {
+    tr.outerHTML = rowHtml(r);
+    $(`row-${serial}`).scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function renderPreview(p) {
+  const c = p.counts;
+  $('previewStats').innerHTML = `
+    <span class="pill ok">${c.toCreate} to create</span>
+    <span class="pill">${c.existing} already exist</span>
+    <span class="pill ${c.problems ? 'bad' : ''}">${c.problems} problem${c.problems === 1 ? '' : 's'}</span>
+    <span class="pill">Limit: ${p.limit === null ? 'none' : `$${p.limit}`} per key</span>
+    ${p.workspace ? `<span class="pill">Workspace: ${esc(p.workspace)}</span>` : ''}`;
+  $('previewBody').innerHTML = p.rows.map(rowHtml).join('') || '<tr><td colspan="4" class="empty">No learners in this file.</td></tr>';
+  $('previewArea').classList.remove('hidden');
+}
+
+async function preview() {
+  state.busy = true; refreshControls();
+  showMsg('info', 'Checking the file and existing keys…');
+  try {
+    const key = settingsKey();
+    const p = await (await api('/api/preview', { method: 'POST', body: JSON.stringify({ ...settings(), csv: state.csv }) })).json();
+    state.preview = p; state.previewKey = key;
+    $('progress').classList.add('hidden');
+    renderPreview(p);
+    showMsg(p.warning ? 'warn' : '', p.warning || '');
+  } catch (err) {
+    state.preview = null;
+    $('previewArea').classList.add('hidden');
+    showMsg('bad', err.message);
+  } finally {
+    state.busy = false; refreshControls();
+  }
+}
+
+async function generate() {
+  const s = settings();
+  const n = state.preview.counts.toCreate;
+  const program = state.config.programs.find((p) => p.id === s.program);
+  if (!confirm(`Create ${n} key(s) in ${program.workspaceSlug}?\n\nRegion: ${s.region}\nCohort: ${s.cohort}\nCredit limit: ${formatLimit(s.limit)} per key`)) return;
+
+  state.busy = true; refreshControls();
+  showMsg('info', 'Generating keys… keep this tab open.');
+  const progress = $('progress');
+  progress.max = state.preview.rows.length; progress.value = 0; progress.classList.remove('hidden');
+  let done = null;
+  try {
+    const res = await api('/api/generate', { method: 'POST', body: JSON.stringify({ ...s, csv: state.csv }) });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done: end } = await reader.read();
+      if (end) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const e = JSON.parse(line);
+        if (e.type === 'processing') setRow(e.serial, 'working', '');
+        else if (e.type === 'created') { setRow(e.serial, 'created', e.maskedKey); progress.value++; }
+        else if (e.type === 'skipped') { setRow(e.serial, 'skipped', `already exists as ${e.existing}`); progress.value++; }
+        else if (e.type === 'failed') { setRow(e.serial, 'failed', e.message); progress.value++; }
+        else if (e.type === 'done') done = e;
+        else if (e.type === 'error') throw new Error(e.message);
+      }
+    }
+    if (!done) throw new Error('The connection closed before the run finished. Check the terminal running the UI.');
+    const kind = done.failed ? 'warn' : 'ok';
+    showMsg(kind, `Done: ${done.created} created, ${done.skipped} skipped, ${done.failed} failed `
+      + `(program=${done.program}, region=${done.region}, cohort=${done.cohort}, limit=${done.limit === null ? 'none' : `$${done.limit}`}).`
+      + (done.failed ? ' Details are in logs/errors.log.' : ''));
+    progress.value = progress.max;
+    $('previewStats').innerHTML = `<span class="pill ok">${done.created} created</span>`
+      + `<span class="pill">${done.skipped} skipped</span>`
+      + `<span class="pill ${done.failed ? 'bad' : ''}">${done.failed} failed</span>`;
+  } catch (err) {
+    showMsg('bad', err.message);
+  } finally {
+    state.busy = false;
+    state.previewKey = 'ran'; // running again needs a fresh preview
+    refreshControls();
+    loadKeys();
+  }
+}
+
+function filteredKeys() {
+  const f = { p: $('fProgram').value, r: $('fRegion').value, c: $('fCohort').value, q: $('fSearch').value.trim().toLowerCase() };
+  return state.keys.filter((k) => (!f.p || k.PROGRAM === f.p) && (!f.r || k.REGION === f.r)
+    && (!f.c || k.COHORT === f.c) && (!f.q || String(k.EMAIL_ID).includes(f.q)));
+}
+
+function fillFilter(id, values, label) {
+  const sel = $(id);
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${label}</option>` + [...new Set(values)].filter(Boolean).sort()
+    .map((v) => `<option ${v === current ? 'selected' : ''}>${esc(v)}</option>`).join('');
+}
+
+function renderKeys() {
+  const rows = filteredKeys();
+  $('keysCount').textContent = `${rows.length} of ${state.keys.length} key${state.keys.length === 1 ? '' : 's'}`;
+  $('keysBody').innerHTML = rows.length ? rows.map((k) => `
+    <tr><td>${esc(k.SERIAL)}</td><td>${esc(k.REGION)}</td><td>${esc(k.PROGRAM)}</td><td>${esc(k.COHORT)}</td>
+      <td>${esc(k.EMAIL_ID)}</td>
+      <td class="mono">${esc(mask(k.API_KEY))} <button class="btn small" data-copy="${esc(k.API_KEY)}">Copy</button></td>
+      <td class="mono">${esc(k.KEY_NAME)}</td></tr>`).join('')
+    : `<tr><td colspan="7" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
+}
+
+async function loadKeys() {
+  try {
+    const data = await (await api('/api/keys')).json();
+    state.keys = data.rows;
+    fillFilter('fProgram', state.keys.map((k) => k.PROGRAM), 'All programs');
+    fillFilter('fRegion', state.keys.map((k) => k.REGION), 'All regions');
+    fillFilter('fCohort', state.keys.map((k) => k.COHORT), 'All cohorts');
+    renderKeys();
+  } catch (err) {
+    $('keysBody').innerHTML = `<tr><td colspan="7" class="empty">${esc(err.message)}</td></tr>`;
+  }
+}
+
+function downloadCsv() {
+  const rows = filteredKeys();
+  if (!rows.length) return toast('Nothing to download');
+  const cols = Object.keys(rows[0]);
+  const cell = (v) => (/[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ''));
+  const text = [cols.join(','), ...rows.map((r) => cols.map((c) => cell(r[c])).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+  a.download = 'openrouter_keys_export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+(async () => {
+  try {
+    state.config = await (await api('/api/config')).json();
+  } catch (err) {
+    showMsg('bad', `Could not reach the key UI server: ${err.message}`);
+    return;
+  }
+  renderSetup(state.config);
+  setupDrop();
+  refreshControls();
+  $('previewBtn').onclick = preview;
+  $('generateBtn').onclick = generate;
+  $('refreshBtn').onclick = loadKeys;
+  $('downloadBtn').onclick = downloadCsv;
+  ['fProgram', 'fRegion', 'fCohort', 'fSearch'].forEach((id) => $(id).addEventListener('input', renderKeys));
+  $('keysBody').addEventListener('click', async (e) => {
+    const key = e.target.dataset && e.target.dataset.copy;
+    if (!key) return;
+    try { await navigator.clipboard.writeText(key); toast('Key copied'); } catch { toast('Copy failed'); }
+  });
+  loadKeys();
+})();
+</script>
+</body>
+</html>
