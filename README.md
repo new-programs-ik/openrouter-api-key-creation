@@ -23,7 +23,7 @@ Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerSh
 1. Open https://openrouter-key-generator.vercel.app and click **Sign in with Google**.
 2. Choose the **program**, **region** and type the **cohort** name (e.g. `mid-oct`).
 3. Keep the **$5** credit limit or pick another.
-4. Upload the learners CSV. Not sure of the format? Click **Download the template (dummy.csv)** on the page.
+4. Upload the learners CSV. Not sure of the format? Click **Download the template (learners.csv)** on the page.
 5. Click **Preview**, check the key names, then **Generate** and keep the tab open until it says *Done*.
 6. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
 
@@ -128,7 +128,7 @@ rahul.k@gmail.com
 priya.s@outlook.com
 ```
 
-- Easiest: on the web page, click **Download the template (dummy.csv)**, replace the two sample emails, and save.
+- Easiest: on the web page, click **Download the template (learners.csv)**, replace the two sample emails, and save.
 - In Excel: put `email id` in cell A1, emails below it, then **File → Save As → "CSV UTF-8 (Comma delimited)"**.
 - The column can also be called `email_id` or `email`. Capitals and extra spaces don't matter.
 - Use **one CSV per program** per run.
@@ -158,7 +158,7 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
    3. **Cohort**: type it, e.g. `mid-oct`. The page shows what the key names will look like.
    4. **Credit limit per key**: $1, $2, $5, $10, **Other** (type any amount) or **No limit**.
       The program's default ($5) is selected for you. Amounts above $100 are refused, to catch typos.
-   5. **Learners CSV**: choose or drop your file. **Download the template (dummy.csv)** gives you the format.
+   5. **Learners CSV**: choose or drop your file. **Download the template (learners.csv)** gives you the format.
 3. Click **Preview**. You'll see every key name and whether it is **New**, **Already exists** or a **Problem**
    (bad or repeated email). Nothing is created yet.
 4. Click **Generate N keys** and confirm. Each row updates as it goes. Keep the tab open until it says *Done*.
@@ -221,7 +221,7 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`. These settings last until you clos
 
 ## 8. First-time test (do this once)
 
-1. Make a CSV with **one** email (yours is fine), e.g. from the dummy.csv template.
+1. Make a CSV with **one** email (yours is fine), e.g. from the learners.csv template.
 2. Open the site (or `npm run web`), choose SWE, US, cohort `test-run`, limit $1, upload the CSV and click
    **Preview**. Check the key name.
 3. Click **Generate 1 key**.
@@ -295,7 +295,7 @@ SERIAL,REGION,EMAIL_ID,PROGRAM,COHORT,KEY_NAME,API_KEY,KEY_HASH
 | `HTTP 401` or `HTTP 403` / "Check that OPENROUTER_MANAGEMENT_KEY is a *Management* key" | The Management key is wrong or is a normal API key. Create a **Management** key (section 4) and put it in `.env` (restart) or in the Vercel setting (redeploy). |
 | "Management key missing" on the page | No `OPENROUTER_MANAGEMENT_KEY` in `.env` / Vercel. Add it and restart / redeploy. |
 | `No workspace with slug "…"` | The workspace doesn't exist or its slug is different. Check https://openrouter.ai, then fix the slug in `config.js` or set `OR_WS_…`. |
-| `learners.csv must have an "email id" header` | The first row of the CSV must be the column name `email id` (or `email_id` / `email`). Use the dummy.csv template. |
+| `learners.csv must have an "email id" header` | The first row of the CSV must be the column name `email id` (or `email_id` / `email`). Use the learners.csv template. |
 | `FAILED for …: invalid email` / `duplicate email` | That row was skipped. Fix the CSV and run again; existing keys are skipped. |
 | `Cannot write to generated_openrouter_keys.csv (EBUSY)` | The file is open in Excel. Close it and try again. |
 | `… has different columns …` | The output file is from an older version. Rename it (e.g. `old_keys.csv`) and run again. |

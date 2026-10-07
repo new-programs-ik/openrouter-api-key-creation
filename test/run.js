@@ -369,9 +369,9 @@ test('web: serves the page and config', async () => {
   assert.strictEqual(config.keyConfigured, true);
 });
 
-test('web: the page offers a dummy.csv template that the app accepts', async () => {
+test('web: the page offers a learners.csv template that the app accepts', async () => {
   const page = await (await fetch(webUrl('/'))).text();
-  const m = page.match(/href="data:text\/csv;charset=utf-8,([^"]+)" download="dummy\.csv"/);
+  const m = page.match(/href="data:text\/csv;charset=utf-8,([^"]+)" download="learners\.csv"/);
   assert.ok(m, 'template link missing');
   const { learners, problems } = await parseLearnersText(decodeURIComponent(m[1]));
   assert.deepStrictEqual(learners.map((l) => l.email), ['learner.one@example.com', 'learner.two@example.com']);
