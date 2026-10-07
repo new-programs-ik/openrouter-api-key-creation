@@ -25,6 +25,7 @@ plain language.
 | `api/index.js`, `vercel.json`, `.vercelignore`, `public/` | Vercel entry point (hosted mode), routing/time limit, upload exclusions, static `robots.txt` |
 | `lib/webApp.js` | All web routes, shared by `local-server.js` and `api/index.js` |
 | `lib/auth.js` | Google sign-in (OAuth code flow) and the signed session cookie |
+| `lib/usage.js` | Usage tab data (`GET /api/usage`): every program workspace's keys with spend; cohort/email from saved records by hash, else parsed from the name (`parseKeyName` + `chooseSplits`, since cohorts and emails can both contain dashes) |
 | `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
 | `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN) |
 | `lib/common.js` | `.env` loader, CSV reading/validation, cohort/region/program/limit parsing, key names, CSV appender |
@@ -50,6 +51,8 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
   after every key, always `access: 'private'`. Never store keys in a public blob.
 - **Long runs (web):** `/api/generate` stops after `RUN_TIME_LIMIT_MS` (only between keys) and returns `nextSerial`;
   the page calls again with `startAt`. Keep `RUN_TIME_LIMIT_MS` + one request timeout below `maxDuration` in `vercel.json`.
+- **Usage tab is read-only:** `/api/usage` only lists keys (GET); never add writes there. OpenRouter's key list has
+  no secrets, keep it that way (tests assert no `sk-or-` in the response). Aggregation happens in the page.
 - **Never print or stream a full API key.** Console and web progress show the first 14 characters only
   (`maskKey`). Full keys exist only in the output CSV and the `/api/keys` response for the local page.
 - **Credit limit:** per run (UI choice / CLI question / `CREDIT_LIMIT`), defaults to the program's

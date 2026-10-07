@@ -168,6 +168,25 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
 
 Run on your computer, the page only works there. Nobody else on the network can open it.
 
+### Usage tab (reports for leadership)
+
+Click **Usage** at the top of the page. It reads the spend of every learner key in all four program
+workspaces straight from OpenRouter (it never creates or changes anything) and shows:
+
+- **Summary figures:** total spend, spend this month, % of the credit-limit budget used, learners with keys,
+  % of learners who used their key, average spend per active learner, keys at or near their limit, keys not used.
+- **Charts:** spend by program and spend by cohort (hover a bar for details).
+- **Cohorts table:** learners, active, spend, this month, average per active learner, budget and % used, per cohort.
+- **Needs attention:** keys at 90%+ of their limit, and keys not used 7 days after they were created.
+- **Learners table:** every key with spend, limit, remaining, % used and status.
+
+Filter by program, region, cohort or learner email; click a column heading to sort. **Download CSV** on each
+table gives an Excel file. **Print / Save as PDF** prints a clean report with the filters and date at the top
+(tick *Include learner list in PDF* to add the full learner table). Click **Refresh** for the latest figures.
+
+Notes: amounts are in USD. "This month" means the current calendar month in UTC; OpenRouter doesn't give
+spend for past months per key. Keys that weren't named by this tool are grouped as "(other keys)".
+
 ---
 
 ## 7. Creating keys from the command line

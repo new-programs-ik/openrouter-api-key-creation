@@ -19,7 +19,14 @@ function createMockServer() {
     issuedKeys: [],
     tokenRequests: [],
     keys: [
-      { hash: 'hash-existing', name: 'US-004-mid-oct-existing@test.com', limit: 2, disabled: false, workspace_id: 'ws-swe' },
+      {
+        hash: 'hash-existing', name: 'US-004-mid-oct-existing@test.com', limit: 2, limit_remaining: 0.15, disabled: false,
+        usage: 1.85, usage_daily: 0.1, usage_weekly: 0.5, usage_monthly: 1.2, created_at: '2026-09-01T10:00:00Z', workspace_id: 'ws-swe',
+      },
+      {
+        hash: 'hash-manual', name: 'someone made this by hand', limit: null, limit_remaining: null, disabled: false,
+        usage: 3, usage_daily: 0, usage_weekly: 0, usage_monthly: 3, created_at: '2026-09-02T10:00:00Z', workspace_id: 'ws-em',
+      },
     ],
   };
 
@@ -82,8 +89,12 @@ function createMockServer() {
           label: `${key.slice(0, 14)}...`,
           disabled: false,
           limit: body.limit ?? null,
+          limit_remaining: body.limit ?? null,
           limit_reset: body.limit_reset ?? null,
           usage: 0,
+          usage_daily: 0,
+          usage_weekly: 0,
+          usage_monthly: 0,
           created_at: new Date().toISOString(),
           workspace_id: body.workspace_id || 'ws-default',
         };

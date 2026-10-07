@@ -16,6 +16,7 @@ const {
 const { createClient, generateKeys } = require('../lib/openrouter');
 const { createFileStore, createBlobStore } = require('../lib/storage');
 const { createWebHandler } = require('../lib/webApp');
+const { parseKeyName, chooseSplits } = require('../lib/usage');
 
 const MOCK_PORT = 8787;
 const WEB_PORT = 3917;
@@ -437,6 +438,61 @@ test('web: generate streams progress and the keys show up in /api/keys', async (
   assert.match(rows[0].API_KEY, /^sk-or-v1-/);
 });
 
+test('parseKeyName + chooseSplits find the cohort even when emails contain dashes', () => {
+  assert.strictEqual(parseKeyName('someone made this by hand'), null);
+  assert.strictEqual(parseKeyName('UK-001-oct-a@x.com'), null);
+  assert.deepStrictEqual(parseKeyName('IND-012-oct-a.b@x.co'), { region: 'IND', serial: 12, splits: [{ cohort: 'oct', email: 'a.b@x.co' }] });
+
+  const names = [
+    'US-001-mid-oct-rahul.k@gmail.com', 'US-002-mid-oct-priya-s@test.com', 'US-003-mid-oct-a-b-c@x.com',
+    'US-001-2nd-mid-oct-lone@x.com', 'IND-001-mid-oct-dash-y@x.com',
+  ];
+  const items = names.map((n) => ({ program: 'swe', parsed: parseKeyName(n) }));
+  chooseSplits(items);
+  assert.deepStrictEqual(items.map((it) => `${it.split.cohort} | ${it.split.email}`), [
+    'mid-oct | rahul.k@gmail.com',
+    'mid-oct | priya-s@test.com', // the cohort shared with other keys wins over "mid-oct-priya"
+    'mid-oct | a-b-c@x.com',
+    '2nd-mid-oct | lone@x.com',
+    'mid-oct-dash | y@x.com', // alone in its region: falls back to the longest cohort
+  ]);
+});
+
+test('web: /api/usage lists every program\'s keys with spend, read-only, no secrets', async () => {
+  const before = mock.state.requests.length;
+  const res = await webFetch('/api/usage');
+  assert.strictEqual(res.status, 200);
+  const text = await res.text();
+  const data = JSON.parse(text);
+  assert.deepStrictEqual(data.warnings, []);
+  assert.ok(!Number.isNaN(Date.parse(data.fetchedAt)));
+
+  const existing = data.rows.find((r) => r.hash === 'hash-existing');
+  assert.deepStrictEqual(
+    { program: existing.program, region: existing.region, cohort: existing.cohort, email: existing.email },
+    { program: 'swe', region: 'US', cohort: 'mid-oct', email: 'existing@test.com' },
+  );
+  assert.deepStrictEqual([existing.usage, existing.usageMonthly, existing.limit, existing.limitRemaining], [1.85, 1.2, 2, 0.15]);
+
+  const manual = data.rows.find((r) => r.hash === 'hash-manual');
+  assert.deepStrictEqual([manual.program, manual.region, manual.cohort, manual.limit], ['em', 'Other', '(other keys)', null]);
+
+  // Keys made by the earlier web test are matched to their saved records.
+  const made = data.rows.find((r) => r.name === 'IND-001-early-nov-web.one@test.com');
+  assert.deepStrictEqual([made.program, made.region, made.cohort, made.email], ['pm-tpm', 'IND', 'early-nov', 'web.one@test.com']);
+
+  assert.ok(!/sk-or-/.test(text), 'usage must never include API keys');
+  assert.ok(mock.state.requests.slice(before).every((r) => r.method === 'GET'), 'usage must only read');
+});
+
+test('web: the page script has no syntax errors and includes the Usage tab', async () => {
+  const page = await (await fetch(webUrl('/'))).text();
+  assert.match(page, /id="tabUsage"/);
+  const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(scripts.length > 0);
+  for (const code of scripts) new Function(code); // throws on a syntax error
+});
+
 // ---------- storage and long runs ----------
 
 // In-memory stand-in for the @vercel/blob module.
@@ -542,7 +598,7 @@ test('auth: signed-out visitors get the sign-in page and no API access', async (
   const page = await (await fetch(`${authBase}/`)).text();
   assert.match(page, /Sign in with Google/);
   assert.doesNotMatch(page, /Create keys/);
-  for (const p of ['/api/config', '/api/keys']) assert.strictEqual((await authApi(p)).status, 401, p);
+  for (const p of ['/api/config', '/api/keys', '/api/usage']) assert.strictEqual((await authApi(p)).status, 401, p);
 });
 
 test('auth: /auth/login sends you to Google, company accounts only', async () => {

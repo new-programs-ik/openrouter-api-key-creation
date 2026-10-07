@@ -12,6 +12,7 @@
     --ok: #1f7a4d; --ok-soft: #e3f4ea; --warn: #8a5a00; --warn-soft: #fdf1d8;
     --bad: #b42318; --bad-soft: #fde7e5; --info-soft: #eef1f5;
     --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    --bar: #3b5bdb;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -19,6 +20,7 @@
       --accent: #7c96ff; --accent-text: #0d1020; --accent-soft: #232b48;
       --ok: #5fd39a; --ok-soft: #173225; --warn: #f2c063; --warn-soft: #3a2f16;
       --bad: #ff8a80; --bad-soft: #3d1d1b; --info-soft: #232830;
+      --bar: #6f8cf5;
     }
   }
   * { box-sizing: border-box; }
@@ -29,7 +31,7 @@
   h1 { font-size: 18px; margin: 0; }
   h2 { font-size: 17px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
-  main { padding: 24px 0 60px; display: grid; gap: 24px; }
+  main { padding: 24px 0 60px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
   section.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--info-soft); color: var(--muted); }
   .pill.ok { background: var(--ok-soft); color: var(--ok); }
@@ -99,6 +101,56 @@
   progress { width: 100%; height: 10px; accent-color: var(--accent); }
   .empty { padding: 28px; text-align: center; color: var(--muted); }
   .hidden { display: none !important; }
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { font: inherit; font-weight: 600; font-size: 14px; background: none; border: 0; border-bottom: 2.5px solid transparent; color: var(--muted); padding: 10px 14px; cursor: pointer; }
+  .tabs button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tabbar { background: var(--panel); border-bottom: 1px solid var(--border); }
+
+  /* Usage */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+  .kpi { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .kpi .label { font-size: 12.5px; color: var(--muted); }
+  .kpi .value { font-size: 24px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .detail { font-size: 12.5px; color: var(--muted); }
+  .bars { display: grid; gap: 6px; margin-top: 12px; }
+  .bar-row { display: grid; grid-template-columns: minmax(70px, min(220px, 38%)) 1fr auto; gap: 10px; align-items: center; font-size: 13px; padding: 2px 0; border-radius: 6px; }
+  .bar-row:hover, .bar-row:focus-visible { background: var(--info-soft); outline: none; }
+  .bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row .track { height: 14px; }
+  .bar-row .fill { height: 100%; min-width: 2px; background: var(--bar); border-radius: 0 4px 4px 0; }
+  .bar-row .amount { text-align: right; font-variant-numeric: tabular-nums; }
+  .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: 280px; }
+  .tip b { display: block; margin-bottom: 2px; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meter { display: inline-block; vertical-align: middle; width: 54px; height: 6px; border-radius: 3px; background: var(--info-soft); margin-right: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--bar); }
+  .meter.warn i { background: var(--warn); }
+  .meter.bad i { background: var(--bad); }
+  .status { font-size: 12px; font-weight: 600; }
+  .status.warn { color: var(--warn); }
+  .status.bad { color: var(--bad); }
+  .status.muted { color: var(--muted); font-weight: 500; }
+  .between { justify-content: space-between; }
+  .printonly { display: none; }
+  @media print {
+    :root { --bg: #fff; --panel: #fff; --text: #111; --muted: #555; --border: #ccc; --bar: #3b5bdb; --info-soft: #eef1f5; --warn: #8a5a00; --bad: #b42318; }
+    body { font-size: 12px; }
+    header .row, .tabbar, .noprint, #createView, .toast { display: none !important; }
+    .printonly { display: block; }
+    main { padding: 0; gap: 12px; }
+    section.card { border: 0; padding: 0; break-inside: avoid; }
+    .tablewrap { max-height: none; overflow: visible; border: 0; }
+    th { position: static; }
+    th, td { white-space: normal; padding: 4px 6px; font-size: 10.5px; }
+    td.note, td.mono { min-width: 0; }
+    .meter { width: 32px; }
+    #usageView.no-learners-print #uLearnersCard { display: none; }
+  }
+
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
 </style>
@@ -117,7 +169,78 @@
   </div>
 </header>
 
-<main class="wrap">
+<nav class="tabbar">
+  <div class="wrap tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tabCreate" aria-selected="true" aria-controls="createView">Create keys</button>
+    <button role="tab" id="tabUsage" aria-selected="false" aria-controls="usageView">Usage</button>
+  </div>
+</nav>
+
+<main class="wrap hidden" id="usageView" role="tabpanel" aria-labelledby="tabUsage">
+  <section class="card">
+    <div class="row between">
+      <div>
+        <h2>Key usage</h2>
+        <p class="sub" id="uUpdated" style="margin: 0;">Spend on learner keys, from OpenRouter (USD).</p>
+      </div>
+      <div class="row noprint">
+        <button class="btn small" id="uRefresh">Refresh</button>
+        <button class="btn small" id="uPrint">Print / Save as PDF</button>
+      </div>
+    </div>
+    <div class="row noprint" style="margin-top: 14px;">
+      <select id="uProgram" aria-label="Filter by program"><option value="">All programs</option></select>
+      <select id="uRegion" aria-label="Filter by region"><option value="">All regions</option></select>
+      <select id="uCohort" aria-label="Filter by cohort"><option value="">All cohorts</option></select>
+      <input id="uSearch" type="search" placeholder="Search learner email…" aria-label="Search learner email">
+      <label class="example" style="margin: 0;"><input type="checkbox" id="uDisabled"> Include disabled keys</label>
+      <label class="example" style="margin: 0;"><input type="checkbox" id="uPrintLearners"> Include learner list in PDF</label>
+    </div>
+    <p class="printonly" id="uFilterSummary"></p>
+    <div id="uMsg"></div>
+    <div class="kpis" id="uKpis"></div>
+    <p class="example" id="uNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>Spend by program</h2>
+    <div class="bars" id="uByProgram"></div>
+  </section>
+
+  <section class="card">
+    <h2>Spend by cohort</h2>
+    <p class="sub" id="uByCohortSub" style="margin: 0;"></p>
+    <div class="bars" id="uByCohort"></div>
+  </section>
+
+  <section class="card">
+    <div class="row between" style="margin-bottom: 10px;">
+      <h2>Cohorts</h2>
+      <button class="btn small noprint" id="uCohortsCsv">Download CSV</button>
+    </div>
+    <div class="tablewrap"><table id="uCohorts"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="row between" style="margin-bottom: 4px;">
+      <h2>Needs attention</h2>
+      <button class="btn small noprint" id="uAttentionCsv">Download CSV</button>
+    </div>
+    <p class="sub">Keys at or near their credit limit, and keys not used in the 7 days since they were created.</p>
+    <div class="tablewrap"><table id="uAttention"></table></div>
+  </section>
+
+  <section class="card" id="uLearnersCard">
+    <div class="row between" style="margin-bottom: 10px;">
+      <h2>Learners</h2>
+      <div class="row"><span class="example" id="uLearnersCount" style="margin: 0;"></span>
+        <button class="btn small noprint" id="uLearnersCsv">Download CSV</button></div>
+    </div>
+    <div class="tablewrap"><table id="uLearners"></table></div>
+  </section>
+</main>
+
+<main class="wrap" id="createView" role="tabpanel" aria-labelledby="tabCreate">
   <section class="card" id="createCard">
     <h2>Create keys</h2>
     <p class="sub">One key per learner email. Existing keys for the same region, cohort and email are skipped, so it's safe to run again.</p>
@@ -206,6 +329,7 @@
 </main>
 
 <div class="toast" id="toast"></div>
+<div class="tip hidden" id="tip" role="tooltip"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -534,6 +658,304 @@ function downloadCsv() {
   URL.revokeObjectURL(a.href);
 }
 
+// ---------- Usage tab ----------
+// Rows come from /api/usage (one per learner key, all programs); everything below is computed here so
+// the filters are instant. Spend figures are OpenRouter's, in USD.
+
+const NEAR_LIMIT = 0.9;      // share of the limit that counts as "near limit"
+const NOT_USED_DAYS = 7;     // a key unused this long after creation is flagged
+const usage = { rows: null, fetchedAt: null, sort: { cohorts: ['spend', -1], attention: ['pctUsed', -1], learners: ['usage', -1] } };
+
+const money = (n) => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Rounded down, so 99.8% of a limit doesn't read as 100%.
+const pct = (n) => (n === null || n === undefined || !Number.isFinite(n) ? '–' : `${Math.floor(n * 100 + 1e-9)}%`);
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+const programLabel = (id) => (state.config.programs.find((p) => p.id === id) || { label: id }).label;
+
+function keyStatus(r) {
+  if (r.disabled) return ['Disabled', 'muted'];
+  const used = r.limit ? r.usage / r.limit : null;
+  if (used !== null && (used >= 1 || (r.limitRemaining !== null && r.limitRemaining <= 0))) return ['At limit', 'bad'];
+  if (used !== null && used >= NEAR_LIMIT) return ['Near limit', 'warn'];
+  if (r.usage === 0) {
+    const ageDays = r.createdAt ? (Date.now() - Date.parse(r.createdAt)) / 864e5 : 0;
+    return ageDays >= NOT_USED_DAYS ? ['Not used', 'muted'] : ['New', 'muted'];
+  }
+  return ['Active', ''];
+}
+
+function enrich(r) {
+  const [status, statusKind] = keyStatus(r);
+  return { ...r, programName: programLabel(r.program), pctUsed: r.limit ? r.usage / r.limit : null, status, statusKind };
+}
+
+function usageFilters() {
+  return { p: $('uProgram').value, r: $('uRegion').value, c: $('uCohort').value, q: $('uSearch').value.trim().toLowerCase(), disabled: $('uDisabled').checked };
+}
+
+function filteredUsage() {
+  const f = usageFilters();
+  return usage.rows.filter((r) => (f.disabled || !r.disabled) && (!f.p || r.program === f.p) && (!f.r || r.region === f.r)
+    && (!f.c || r.cohort === f.c) && (!f.q || r.email.includes(f.q) || r.name.toLowerCase().includes(f.q)));
+}
+
+function aggregate(rows) {
+  const a = { keys: rows.length, active: 0, spend: 0, month: 0, budget: 0, unlimited: 0, flagged: 0, notUsed: 0, created: null };
+  for (const r of rows) {
+    if (r.usage > 0) a.active++;
+    a.spend += r.usage;
+    a.month += r.usageMonthly;
+    if (r.limit === null) a.unlimited++; else a.budget += r.limit;
+    if (r.statusKind === 'bad' || r.statusKind === 'warn') a.flagged++;
+    if (r.status === 'Not used') a.notUsed++;
+    if (r.createdAt && (!a.created || r.createdAt < a.created)) a.created = r.createdAt;
+  }
+  a.activeShare = a.keys ? a.active / a.keys : null;
+  a.avgActive = a.active ? a.spend / a.active : 0;
+  a.budgetUsed = a.budget ? a.spend / a.budget : null;
+  return a;
+}
+
+function groupBy(rows, keyFn, describe) {
+  const groups = new Map();
+  for (const r of rows) {
+    const k = keyFn(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  return [...groups.values()].map((list) => ({ ...describe(list[0]), ...aggregate(list) }));
+}
+
+function kpi(label, value, detail) {
+  return `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="detail">${esc(detail || '')}</div></div>`;
+}
+
+// Horizontal bar chart, one series (no legend: the card title names it). Hover/focus shows details.
+function renderBars(id, items, emptyText) {
+  const max = Math.max(0, ...items.map((i) => i.value));
+  $(id).innerHTML = !items.length || max === 0 ? `<div class="empty">${esc(emptyText)}</div>`
+    : items.map((i) => `<div class="bar-row" tabindex="0" data-tip="${esc(i.tip)}">
+        <span class="name" title="${esc(i.label)}">${esc(i.label)}</span>
+        <span class="track"><span class="fill" style="display:block; width:${(i.value / max) * 100}%"></span></span>
+        <span class="amount">${esc(money(i.value))}</span></div>`).join('');
+}
+
+// Sortable table. cols: { key, label, num?, value(r) for sorting/CSV, html(r)? for display }.
+function renderTable(id, which, cols, rows, emptyText) {
+  const [key, dir] = usage.sort[which];
+  const col = cols.find((c) => c.key === key) || cols[0];
+  const val = (c, r) => (c.value ? c.value(r) : r[c.key]);
+  const sorted = [...rows].sort((a, b) => {
+    const x = val(col, a); const y = val(col, b);
+    if (x === y) return 0;
+    if (x === null || x === undefined) return 1;
+    if (y === null || y === undefined) return -1;
+    return (x > y ? 1 : -1) * dir;
+  });
+  const head = cols.map((c) => `<th class="sortable ${c.num ? 'num' : ''}" data-table="${which}" data-sort="${c.key}"
+    aria-sort="${c.key === key ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${esc(c.label)}${c.key === key ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+  const body = sorted.map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? 'num' : ''}">${c.html ? c.html(r) : esc(val(c, r) ?? '')}</td>`).join('')}</tr>`).join('');
+  $(id).innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">${esc(emptyText)}</td></tr>`}</tbody>`;
+  return sorted;
+}
+
+const statusHtml = (r) => `<span class="status ${r.statusKind}">${esc(r.status)}</span>`;
+const meterHtml = (r) => (r.pctUsed === null ? 'no limit'
+  : `<span class="meter ${r.statusKind === 'bad' || r.statusKind === 'warn' ? r.statusKind : ''}"><i style="width:${Math.min(r.pctUsed, 1) * 100}%"></i></span>${esc(pct(r.pctUsed))}`);
+
+const COHORT_COLS = [
+  { key: 'programName', label: 'Program' },
+  { key: 'region', label: 'Region' },
+  { key: 'cohort', label: 'Cohort' },
+  { key: 'created', kind: 'date', label: 'Keys created', value: (r) => r.created, html: (r) => esc(day(r.created)) },
+  { key: 'keys', label: 'Learners', num: true },
+  { key: 'active', label: 'Active', num: true },
+  { key: 'activeShare', label: '% active', num: true, kind: 'pct', html: (r) => esc(pct(r.activeShare)) },
+  { key: 'spend', kind: 'money', label: 'Spend', num: true, html: (r) => esc(money(r.spend)) },
+  { key: 'month', kind: 'money', label: 'This month', num: true, html: (r) => esc(money(r.month)) },
+  { key: 'avgActive', kind: 'money', label: 'Avg per active learner', num: true, html: (r) => esc(money(r.avgActive)) },
+  { key: 'budget', kind: 'money', label: 'Budget', num: true, html: (r) => esc(money(r.budget) + (r.unlimited ? ` + ${r.unlimited} unlimited` : '')) },
+  { key: 'budgetUsed', label: '% budget used', num: true, kind: 'pct', html: (r) => esc(pct(r.budgetUsed)) },
+];
+
+const LEARNER_COLS = [
+  { key: 'email', label: 'Learner', html: (r) => esc(r.email || r.name) },
+  { key: 'programName', label: 'Program' },
+  { key: 'region', label: 'Region' },
+  { key: 'cohort', label: 'Cohort' },
+  { key: 'usage', kind: 'money', label: 'Spend', num: true, html: (r) => esc(money(r.usage)) },
+  { key: 'usageMonthly', kind: 'money', label: 'This month', num: true, html: (r) => esc(money(r.usageMonthly)) },
+  { key: 'limit', kind: 'money', label: 'Limit', num: true, html: (r) => esc(r.limit === null ? 'none' : money(r.limit)) },
+  { key: 'limitRemaining', kind: 'money', label: 'Remaining', num: true, html: (r) => esc(r.limitRemaining === null ? '–' : money(r.limitRemaining)) },
+  { key: 'pctUsed', label: '% of limit used', num: true, kind: 'pct', html: meterHtml },
+  { key: 'status', label: 'Status', html: statusHtml },
+  { key: 'createdAt', kind: 'date', label: 'Created', html: (r) => esc(day(r.createdAt)) },
+];
+
+const ATTENTION_COLS = [
+  { key: 'email', label: 'Learner', html: (r) => esc(r.email || r.name) },
+  { key: 'programName', label: 'Program' },
+  { key: 'cohort', label: 'Cohort' },
+  { key: 'usage', kind: 'money', label: 'Spend', num: true, html: (r) => esc(money(r.usage)) },
+  { key: 'limit', kind: 'money', label: 'Limit', num: true, html: (r) => esc(r.limit === null ? 'none' : money(r.limit)) },
+  { key: 'pctUsed', label: '% of limit used', num: true, kind: 'pct', html: meterHtml },
+  { key: 'status', label: 'Status', html: statusHtml },
+];
+
+// Last rendered (sorted) rows, so CSV downloads match what's on screen.
+const shown = { cohorts: [], attention: [], learners: [] };
+
+function renderUsage() {
+  if (!usage.rows) return;
+  const rows = filteredUsage();
+  const all = aggregate(rows);
+  const f = usageFilters();
+
+  $('uKpis').innerHTML = [
+    kpi('Total spend', money(all.spend), 'all time'),
+    kpi('Spend this month', money(all.month), 'current calendar month (UTC)'),
+    kpi('Budget used', pct(all.budgetUsed), `of ${money(all.budget)} in credit limits`),
+    kpi('Learners with keys', all.keys.toLocaleString('en-US'), `${new Set(rows.map((r) => `${r.program}|${r.region}|${r.cohort}`)).size} cohort(s)`),
+    kpi('Active learners', pct(all.activeShare), `${all.active} used their key at least once`),
+    kpi('Avg spend per active learner', money(all.avgActive), ''),
+    kpi('At or near limit', String(all.flagged), `${Math.round(NEAR_LIMIT * 100)}% or more of their limit`),
+    kpi('Not used', String(all.notUsed), `no spend ${NOT_USED_DAYS}+ days after creation`),
+  ].join('');
+  $('uNote').textContent = 'Spend is all-time unless marked "this month". Budget is the total of the keys\' credit limits'
+    + (all.unlimited ? `; ${all.unlimited} key(s) have no limit and are not in it.` : '.');
+
+  const byProgram = groupBy(rows, (r) => r.program, (r) => ({ label: r.programName }))
+    .sort((a, b) => b.spend - a.spend);
+  renderBars('uByProgram', byProgram.map((g) => ({
+    label: g.label, value: g.spend,
+    tip: `${g.label}|Spend ${money(g.spend)} · this month ${money(g.month)}|${g.keys} learners, ${pct(g.activeShare)} active|${pct(g.budgetUsed)} of ${money(g.budget)} budget`,
+  })), 'No spend yet.');
+
+  const cohorts = groupBy(rows, (r) => `${r.program}|${r.region}|${r.cohort}`,
+    (r) => ({ program: r.program, programName: r.programName, region: r.region, cohort: r.cohort }));
+  const TOP = 15;
+  const topCohorts = [...cohorts].sort((a, b) => b.spend - a.spend).slice(0, TOP);
+  $('uByCohortSub').textContent = cohorts.length > TOP ? `Top ${TOP} of ${cohorts.length} cohorts by spend. All cohorts are in the table below.` : '';
+  renderBars('uByCohort', topCohorts.map((g) => ({
+    label: `${g.programName} · ${g.region} · ${g.cohort}`, value: g.spend,
+    tip: `${g.programName} · ${g.region} · ${g.cohort}|Spend ${money(g.spend)} · this month ${money(g.month)}|${g.keys} learners, ${pct(g.activeShare)} active · avg ${money(g.avgActive)}|${pct(g.budgetUsed)} of ${money(g.budget)} budget`,
+  })), 'No spend yet.');
+
+  shown.cohorts = renderTable('uCohorts', 'cohorts', COHORT_COLS, cohorts, 'No keys match the filters.');
+  shown.attention = renderTable('uAttention', 'attention', ATTENTION_COLS,
+    rows.filter((r) => !r.disabled && (r.statusKind === 'bad' || r.statusKind === 'warn' || r.status === 'Not used')),
+    'Nothing needs attention.');
+  shown.learners = renderTable('uLearners', 'learners', LEARNER_COLS, rows, 'No keys match the filters.');
+  $('uLearnersCount').textContent = `${rows.length} key${rows.length === 1 ? '' : 's'}`;
+
+  const optLabel = (id, fallback) => { const s = $(id); return s.value ? s.options[s.selectedIndex].text : fallback; };
+  $('uFilterSummary').textContent = `Program: ${optLabel('uProgram', 'All')} · Region: ${optLabel('uRegion', 'All')} · `
+    + `Cohort: ${optLabel('uCohort', 'All')}${f.q ? ` · Search: ${f.q}` : ''}${f.disabled ? ' · including disabled keys' : ''}`
+    + ` · Data as of ${new Date(usage.fetchedAt).toLocaleString('en-GB')}`;
+}
+
+async function loadUsage() {
+  $('uMsg').innerHTML = '<div class="msg info">Loading usage from OpenRouter…</div>';
+  $('uRefresh').disabled = true;
+  try {
+    const data = await (await api('/api/usage')).json();
+    usage.rows = data.rows.map(enrich);
+    usage.fetchedAt = data.fetchedAt;
+    const currentProgram = $('uProgram').value;
+    $('uProgram').innerHTML = '<option value="">All programs</option>' + state.config.programs
+      .map((p) => `<option value="${esc(p.id)}" ${p.id === currentProgram ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+    fillFilter('uRegion', usage.rows.map((r) => r.region), 'All regions');
+    fillFilter('uCohort', usage.rows.map((r) => r.cohort), 'All cohorts');
+    $('uUpdated').textContent = `Spend on learner keys, from OpenRouter (USD). Updated ${new Date(data.fetchedAt).toLocaleString('en-GB')}.`;
+    $('uMsg').innerHTML = data.warnings.length
+      ? `<div class="msg warn">Some programs could not be read:\n${esc(data.warnings.join('\n'))}</div>` : '';
+    renderUsage();
+  } catch (err) {
+    $('uMsg').innerHTML = `<div class="msg bad">${esc(err.message)}</div>`;
+  } finally {
+    $('uRefresh').disabled = false;
+  }
+}
+
+function csvText(cols, rows) {
+  const cell = (v) => (/[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ''));
+  const raw = (c, r) => (c.value ? c.value(r) : r[c.key]);
+  const value = (c, r) => {
+    const v = raw(c, r);
+    if (v === null || v === undefined) return '';
+    if (c.kind === 'money') return v.toFixed(2);
+    if (c.kind === 'pct') return Math.floor(v * 100 + 1e-9);
+    if (c.kind === 'date') return String(v).slice(0, 10);
+    return v;
+  };
+  return [cols.map((c) => cell(c.label)).join(','), ...rows.map((r) => cols.map((c) => cell(value(c, r))).join(','))].join('\r\n');
+}
+
+function saveCsv(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function showTab(name) {
+  const usageTab = name === 'usage';
+  $('tabCreate').setAttribute('aria-selected', String(!usageTab));
+  $('tabUsage').setAttribute('aria-selected', String(usageTab));
+  $('createView').classList.toggle('hidden', usageTab);
+  $('usageView').classList.toggle('hidden', !usageTab);
+  history.replaceState(null, '', usageTab ? '#usage' : location.pathname);
+  if (usageTab && !usage.rows) loadUsage();
+}
+
+function setupUsage() {
+  $('tabCreate').onclick = () => showTab('create');
+  $('tabUsage').onclick = () => showTab('usage');
+  $('uRefresh').onclick = loadUsage;
+  ['uProgram', 'uRegion', 'uCohort', 'uSearch', 'uDisabled'].forEach((id) => $(id).addEventListener('input', renderUsage));
+  $('uPrint').onclick = () => {
+    $('usageView').classList.toggle('no-learners-print', !$('uPrintLearners').checked);
+    window.print();
+  };
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  $('uCohortsCsv').onclick = () => saveCsv(`usage-by-cohort-${stamp()}.csv`, csvText(COHORT_COLS, shown.cohorts));
+  $('uAttentionCsv').onclick = () => saveCsv(`usage-needs-attention-${stamp()}.csv`, csvText(ATTENTION_COLS, shown.attention));
+  $('uLearnersCsv').onclick = () => saveCsv(`usage-by-learner-${stamp()}.csv`, csvText(LEARNER_COLS, shown.learners));
+
+  $('usageView').addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    const which = th.dataset.table;
+    const [key, dir] = usage.sort[which];
+    usage.sort[which] = [th.dataset.sort, key === th.dataset.sort ? -dir : -1];
+    renderUsage();
+  });
+
+  // Chart tooltips: data-tip is "title|line|line…".
+  const tip = $('tip');
+  const showTip = (row, x, y) => {
+    const [title, ...lines] = row.dataset.tip.split('|');
+    tip.innerHTML = `<b>${esc(title)}</b>${lines.map((l) => `<div>${esc(l)}</div>`).join('')}`;
+    tip.classList.remove('hidden');
+    const w = tip.offsetWidth; const h = tip.offsetHeight;
+    tip.style.left = `${Math.max(8, Math.min(x + 14, innerWidth - w - 8))}px`;
+    tip.style.top = `${Math.max(8, Math.min(y + 14, innerHeight - h - 8))}px`;
+  };
+  $('usageView').addEventListener('mousemove', (e) => {
+    const row = e.target.closest('.bar-row');
+    if (row) showTip(row, e.clientX, e.clientY); else tip.classList.add('hidden');
+  });
+  $('usageView').addEventListener('mouseleave', () => tip.classList.add('hidden'));
+  $('usageView').addEventListener('focusin', (e) => {
+    const row = e.target.closest('.bar-row');
+    if (!row) return;
+    const r = row.getBoundingClientRect();
+    showTip(row, r.left + r.width / 2, r.top);
+  });
+  $('usageView').addEventListener('focusout', () => tip.classList.add('hidden'));
+}
+
 (async () => {
   try {
     state.config = await (await api('/api/config')).json();
@@ -555,6 +977,8 @@ function downloadCsv() {
     try { await navigator.clipboard.writeText(key); toast('Key copied'); } catch { toast('Copy failed'); }
   });
   loadKeys();
+  setupUsage();
+  if (location.hash === '#usage') showTab('usage');
 })();
 </script>
 </body>
