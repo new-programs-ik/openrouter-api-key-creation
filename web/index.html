@@ -62,6 +62,7 @@
   .fielderr.warn { color: var(--warn); }
   .step label.title .example { font-weight: 400; margin-left: 6px; }
   .example { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .example a { color: var(--accent); }
   .example code { font-family: var(--mono); color: var(--text); background: var(--info-soft); padding: 2px 6px; border-radius: 5px; word-break: break-all; }
 
   .drop { border: 1.5px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; }
@@ -154,6 +155,7 @@
           <div id="dropText"><b>Choose a CSV file</b> or drop it here. It needs an <code>email id</code> column.</div>
         </div>
         <input type="file" id="file" accept=".csv,text/csv" class="hidden">
+        <div class="example">Not sure of the format? <a href="data:text/csv;charset=utf-8,email%20id%0D%0Alearner.one%40example.com%0D%0Alearner.two%40example.com%0D%0A" download="dummy.csv">Download the template (dummy.csv)</a>, replace the sample emails with your learners' and upload it.</div>
         <div class="example" id="useFolderFile"></div>
       </div>
 

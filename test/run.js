@@ -230,7 +230,7 @@ test('first run: creates 001 + 002, logs problems, skips existing', async () => 
   assert.strictEqual(code, 1, 'exit code is 1 because some rows failed');
   assert.match(out, /Workspace: Agentic AI-SWE \(agentic-ai-swe\)/);
   assert.match(out, /Skipped \(already exists\): US-004-mid-oct-existing@test\.com/);
-  assert.match(out, /DONE: 2 created, 1 skipped, 3 failed \(program=swe, region=US, cohort=mid-oct, limit=\$2\)/);
+  assert.match(out, /DONE: 2 created, 1 skipped, 3 failed \(program=swe, region=US, cohort=mid-oct, limit=\$5\)/);
 
   // Header " Email ID" was matched, so rows were read at all.
   const lines = csvLines();
@@ -365,6 +365,15 @@ test('web: serves the page and config', async () => {
   assert.deepStrictEqual(config.regions, ['US', 'IND']);
   assert.ok(Array.isArray(config.limitChoices) && config.limitChoices.length > 0);
   assert.strictEqual(config.keyConfigured, true);
+});
+
+test('web: the page offers a dummy.csv template that the app accepts', async () => {
+  const page = await (await fetch(webUrl('/'))).text();
+  const m = page.match(/href="data:text\/csv;charset=utf-8,([^"]+)" download="dummy\.csv"/);
+  assert.ok(m, 'template link missing');
+  const { learners, problems } = await parseLearnersText(decodeURIComponent(m[1]));
+  assert.deepStrictEqual(learners.map((l) => l.email), ['learner.one@example.com', 'learner.two@example.com']);
+  assert.strictEqual(problems.length, 0);
 });
 
 test('web: rejects requests without the UI header or from another host', async () => {
