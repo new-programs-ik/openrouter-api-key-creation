@@ -458,9 +458,12 @@ Make a copy first (scenario list → **⋯ → Clone**) so the old one keeps wor
    **Send test email**. Make shows "Successfully determined".
 4. **Gmail: Send an email.** Map **To** = `email`. In the text use `api_key`, `program`, `cohort`, and for the
    greeting `{{if(name; name; "there")}}` so learners without a name get "Hi there".
-5. **Google Sheets.** Replace *Update a Row* with **Add a Row** to keep the sheet as a sent log: map `email`,
-   `name`, `key_name`, `program`, `cohort`, `sent_by`, `test` and `{{now}}`. (Storing `api_key` in the sheet is
-   optional; the app already keeps the keys.)
+5. **Gmail: Get an email**, then **Google Sheets.** After *Send an email*, add **Gmail → Get an email** with
+   the Message ID from *Send an email*; it reads the sent email back, so the sheet can record which Gmail
+   account sent it. Then replace *Update a Row* with **Add a Row** to keep the sheet as a sent log: map `email`,
+   `name`, `key_name`, `program`, `cohort`, `sent_by` (who clicked Send in the app), `test`, `{{now}}`, and a
+   `sent_from` column = the sender's address from *Get an email* (the Gmail account the email came from).
+   (Storing `api_key` in the sheet is optional; the app already keeps the keys.)
 6. **Webhooks → Webhook response** as the last module: status `200`, body `{"status":"sent"}`, and a header
    `Content-Type: application/json`. This is how the app knows the email really went out. Without it, rows show
    **Sent to Make** instead of **Sent ✓**.
