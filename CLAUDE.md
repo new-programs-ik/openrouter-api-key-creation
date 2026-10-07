@@ -28,7 +28,8 @@ plain language.
 | `lib/usage.js` | Usage tab data (`GET /api/usage`): every program workspace's keys with spend; cohort/email from saved records by hash, else parsed from the name (`parseKeyName` + `chooseSplits`, since cohorts and emails can both contain dashes) |
 | `lib/trends.js` | Usage tab trends (`GET /api/trends?months=1..12`): per program workspace, `POST /analytics/query` by key per month and by key × model. Analytics reports keys by **name** (`api_key_id`), so the page joins on program + key name. Limits: 367-day range, 10,000 rows |
 | `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
-| `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN) |
+| `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN). Interview Kickstart look: colour tokens on `:root` (navy `#324158` text, IK blues `#3996d2`/`#49a9f8`, accent `#1769b8` chosen for 4.5:1 text contrast), dark mode via `prefers-color-scheme`, keep both pages' tokens in sync |
+| `web/fonts/` | Inter (latin, variable 400–700) served at `/fonts/Inter-latin.woff2` without sign-in; SIL OFL licence in `OFL.txt` |
 | `lib/common.js` | `.env` loader, CSV reading/validation, cohort/region/program/limit parsing, key names, CSV appender |
 | `lib/openrouter.js` | Management API client, `planKeys` (preview), `generateKeys` (the creation loop, reports progress via `onEvent`) |
 | `lib/prompts.js` | Terminal questions for the CLI |

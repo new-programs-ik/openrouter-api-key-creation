@@ -6,33 +6,50 @@
 <title>Sign in · OpenRouter Key Generator</title>
 <link rel="icon" href="data:,">
 <style>
+  /* Same Interview Kickstart look as index.html. */
+  @font-face {
+    font-family: "Inter"; src: url("/fonts/Inter-latin.woff2") format("woff2"); font-weight: 400 700; font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #616b76; --border: #dfe3e8;
-    --accent: #3b5bdb; --accent-text: #ffffff; --bad: #b42318; --bad-soft: #fde7e5;
+    --bg: #f3f7fb; --bg-top: #e8f3fe; --panel: #ffffff; --text: #324158; --muted: #5e6e84; --border: #e3e7ec;
+    --accent: #1769b8; --accent-hover: #135aa0; --accent-text: #ffffff; --brand-bright: #49a9f8;
+    --bad: #b42318; --bad-soft: #fde7e5; --shadow: 0 8px 32px rgba(50, 65, 88, .10);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #111418; --panel: #1a1e24; --text: #e6e9ed; --muted: #9aa4af; --border: #2c323a;
-      --accent: #7c96ff; --accent-text: #0d1020; --bad: #ff8a80; --bad-soft: #3d1d1b;
+      --bg: #0e1823; --bg-top: #0e1823; --panel: #14202e; --text: #e6edf5; --muted: #9fb0c4; --border: #24354a;
+      --accent: #49a9f8; --accent-hover: #6db9fa; --accent-text: #0b1520; --brand-bright: #49a9f8;
+      --bad: #ff8a80; --bad-soft: #3d1d1b; --shadow: none;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .card { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
-  h1 { font-size: 19px; margin: 0 0 6px; }
-  p { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
-  a.btn { display: block; text-align: center; font-weight: 600; text-decoration: none; border-radius: 8px; padding: 10px 18px; background: var(--accent); color: var(--accent-text); }
-  a.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .msg { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 18px; background: var(--bad-soft); color: var(--bad); }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; color: var(--text);
+    font: 15px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, var(--bg-top) 0, var(--bg) 60vh) no-repeat, var(--bg);
+  }
+  .card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 32px 28px; box-shadow: var(--shadow); text-align: center; }
+  .logo { font-weight: 700; font-size: 34px; letter-spacing: -.02em; color: var(--brand-bright); line-height: 1; margin-bottom: 18px; }
+  .logo span { color: var(--accent); }
+  h1 { font-size: 21px; font-weight: 650; margin: 0 0 6px; letter-spacing: -.01em; }
+  p { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  a.btn { display: block; text-align: center; font-weight: 600; text-decoration: none; border-radius: 6px; padding: 12px 18px; background: var(--accent); color: var(--accent-text); transition: background .15s; }
+  a.btn:hover { background: var(--accent-hover); }
+  a.btn:focus-visible { outline: 2px solid var(--brand-bright); outline-offset: 2px; }
+  .msg { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 18px; background: var(--bad-soft); color: var(--bad); text-align: left; }
+  .foot { margin: 18px 0 0; font-size: 12.5px; }
   .hidden { display: none; }
 </style>
 </head>
 <body>
 <main class="card">
+  <div class="logo" aria-label="Interview Kickstart">{<span>ik</span>}</div>
   <h1>OpenRouter Key Generator</h1>
   <p>Sign in with your Interview Kickstart Google account. Only approved team members can create keys.</p>
   <div class="msg hidden" id="msg" role="alert"></div>
   <a class="btn" href="/auth/login">Sign in with Google</a>
+  <p class="foot">Use your @interviewkickstart.com account.</p>
 </main>
 <script>
 const MESSAGES = {

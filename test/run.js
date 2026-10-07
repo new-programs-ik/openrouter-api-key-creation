@@ -648,6 +648,11 @@ test('auth: signed-out visitors get the sign-in page and no API access', async (
   assert.match(page, /Sign in with Google/);
   assert.doesNotMatch(page, /Create keys/);
   for (const p of ['/api/config', '/api/keys', '/api/usage', '/api/trends']) assert.strictEqual((await authApi(p)).status, 401, p);
+  // The font is public: the sign-in page needs it.
+  const font = await fetch(`${authBase}/fonts/Inter-latin.woff2`);
+  assert.strictEqual(font.status, 200);
+  assert.strictEqual(font.headers.get('content-type'), 'font/woff2');
+  assert.strictEqual(Buffer.from(await font.arrayBuffer()).subarray(0, 4).toString(), 'wOF2');
 });
 
 test('auth: /auth/login sends you to Google, company accounts only', async () => {
