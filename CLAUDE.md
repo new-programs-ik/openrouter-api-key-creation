@@ -28,6 +28,7 @@ plain language.
 | `lib/auth.js` | Google sign-in (OAuth code flow) and the signed session cookie |
 | `lib/usage.js` | Usage tab data (`GET /api/usage`): every program workspace's keys with spend; cohort/email from saved records by hash, else parsed from the name (`parseKeyName` + `chooseSplits`, since cohorts and emails can both contain dashes) |
 | `lib/trends.js` | Usage tab trends (`GET /api/trends?months=1..12`): per program workspace, `POST /analytics/query` by key per month and by key × model. Analytics reports keys by **name** (`api_key_id`), so the page joins on program + key name. Limits: 367-day range, 10,000 rows |
+| `lib/guardrails.js` | Guardrails (`GET /api/guardrails`, `POST /api/guardrails/assign`): each program workspace's guardrails, which saved keys have one, and attaching one to saved keys (batches of 500) |
 | `lib/send.js` | Emails keys through a Make custom webhook (`MAKE_WEBHOOK_URL`, `MAKE_WEBHOOK_API_KEY` as `x-make-apikey`): one call per learner, result recorded in the store's sent log (`SENT_COLUMNS`), `{"status":"sent"}` reply = confirmed, plain `Accepted` = queued |
 | `lib/storage.js` | Key stores: CSV file (`createFileStore`) and private Vercel Blob (`createBlobStore`) |
 | `web/index.html`, `web/login.html` | The page and the sign-in page (vanilla HTML/JS, no CDN). Interview Kickstart look: colour tokens on `:root` (navy `#324158` text, IK blues `#3996d2`/`#49a9f8`, accent `#1769b8` chosen for 4.5:1 text contrast), dark mode via `prefers-color-scheme`, keep both pages' tokens in sync |
@@ -66,6 +67,9 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
   (sent/queued) unless `resend`; record every attempt before the next; stop if a record can't be saved. Online, the
   test email (`/api/send-test`) always goes to the signed-in user. Keys go to Make (that's the point) but never into
   logs or the progress stream.
+- **Guardrails:** OpenRouter doesn't attach a workspace's guardrail to new keys, so the page offers it after a run
+  (created events carry the key `hash`) and for ticked keys. `assignGuardrail` only accepts hashes from the key store,
+  all from one program, and a guardrail from that program's workspace. One guardrail per key; assigning replaces.
 - **Never print or stream a full API key.** Console and web progress show the first 14 characters only
   (`maskKey`). Full keys exist only in the output CSV and the `/api/keys` response for the local page.
 - **Credit limit:** per run (UI choice / CLI question / `CREDIT_LIMIT`), defaults to the program's
@@ -89,6 +93,8 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
   created/listed **without** `workspace_id` (= Default workspace); trends then warn to set `OR_WS_SME`.
 - `GET /keys?workspace_id=&include_disabled=true&offset=`: paginated; without `workspace_id` it only shows the default workspace.
 - `POST /keys` `{ name, workspace_id, limit?, limit_reset? }` → `{ key, data: { hash, ... } }`; the key is returned only once.
+- `GET /guardrails?workspace_id=` (no id = Default workspace), `GET /guardrails/assignments/keys` → `{ key_hash, guardrail_id }`,
+  `POST /guardrails/{id}/assignments/keys` `{ key_hashes }` (max 500) → `{ assigned_count }`.
 - `PATCH /keys/{hash}` `{ disabled: true }` / `DELETE /keys/{hash}`: for a future "revoke cohort" script (not built).
 - `OPENROUTER_BASE_URL` overrides the API base (tests point it at the mock).
 

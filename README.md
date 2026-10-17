@@ -27,7 +27,9 @@ Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerSh
 4. Add the learners: upload a CSV, or switch to **Type emails** and paste them separated by commas.
    Not sure of the CSV format? Click **Download the template (learners.csv)** on the page.
 5. Click **Preview**, check the key names, then **Generate** and keep the tab open until it says *Done*.
-6. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
+6. Pick the program's guardrail in **Add a guardrail to the new keys** and click **Add guardrail**
+   (OpenRouter doesn't add it by itself).
+7. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
 
 The rest of this file explains the details and how to run it on your own computer.
 
@@ -174,9 +176,17 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
 3. Click **Preview**. You'll see every key name and whether it is **New**, **Already exists** or a **Problem**
    (bad or repeated email). Nothing is created yet.
 4. Click **Generate N keys** and confirm. Each row updates as it goes. Keep the tab open until it says *Done*.
-5. The **Generated keys** section lists every key created (online: from private storage; on your computer:
+5. **Add the guardrail.** OpenRouter does **not** put a workspace's guardrail on new keys by itself. After the
+   run, a bar appears: **Add a guardrail to the N new keys**. It lists the guardrails in that program's
+   workspace. Pick one, click **Add guardrail** and confirm. (No guardrails listed? Create one in that workspace
+   on https://openrouter.ai, then click **Refresh** under Generated keys.)
+6. The **Generated keys** section lists every key created (online: from private storage; on your computer:
    from `generated_openrouter_keys.csv`). You can filter by program, region or cohort, search by email,
-   **Copy** a key, or **Download CSV** of what's shown.
+   **Copy** a key, or **Download CSV** of what's shown. The **Guardrail** column shows each key's guardrail
+   (**None** = no guardrail). To add one to older keys: filter (e.g. by program and cohort), tick the keys, choose
+   the guardrail in **Guardrail for the selected keys** and click **Add guardrail to N keys**. Tick keys from one
+   program at a time, since each program has its own guardrails. A key can have only one guardrail, so adding one
+   replaces the old one (the page warns you first).
 
 Run on your computer, the page only works there. Nobody else on the network can open it.
 
@@ -255,7 +265,7 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`, `sme`. These settings last until y
 1. Prepare one CSV per program (SWE, PM/TPM, EM, FDE) with an `email id` column.
 2. Open https://openrouter-key-generator.vercel.app (or run `npm run web`).
 3. For each program: choose the program, region and cohort name (e.g. `early-nov`), choose the limit,
-   upload that program's CSV, **Preview**, then **Generate**.
+   upload that program's CSV, **Preview**, then **Generate**, then **Add guardrail** for the new keys.
 4. Check the summary. If anything failed, read the message on the page (details: Vercel **Logs** online,
    `logs/errors.log` on your computer), fix the CSV and run again. Learners that already have a key are skipped.
 5. Email each learner their key: filter **Generated keys** by cohort, tick the learners and click **Send keys by email**

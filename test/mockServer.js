@@ -22,6 +22,12 @@ function createMockServer() {
     makeCalls: [], // POST /make-hook bodies (the x-make-apikey header is checked)
     // Usage events for POST /analytics/query: { workspace_id, key (key name), model, month: 'YYYY-MM', cost, requests, tokens }
     analytics: [],
+    guardrails: [
+      { id: 'gr-swe', name: 'SWE learners', description: 'Approved models only', limit_usd: null, reset_interval: null, workspace_id: 'ws-swe' },
+      { id: 'gr-em', name: 'EM learners', description: '', limit_usd: 10, reset_interval: 'monthly', workspace_id: 'ws-em' },
+      { id: 'gr-default', name: 'Staff', description: '', limit_usd: null, reset_interval: null, workspace_id: 'ws-default' },
+    ],
+    guardrailAssignments: [], // { id, key_hash, guardrail_id, key_name }
     keys: [
       {
         hash: 'hash-existing', name: 'US-004-mid-oct-existing@test.com', limit: 2, limit_remaining: 0.15, disabled: false,
@@ -117,6 +123,38 @@ function createMockServer() {
         // Like the real API: counts come back as strings.
         const rows = [...groups.values()].map((g) => ({ ...g, request_count: String(g.request_count), tokens_total: String(g.tokens_total) }));
         return send(res, 200, { data: { data: rows, metadata: { query_time_ms: 1, row_count: rows.length, truncated: false } } });
+      }
+
+      if (req.method === 'GET' && route === '/guardrails') {
+        const ws = url.searchParams.get('workspace_id') || 'ws-default';
+        const limit = Number(url.searchParams.get('limit') || 50);
+        const inWs = state.guardrails.filter((g) => g.workspace_id === ws);
+        return send(res, 200, { data: inWs.slice(offset, offset + limit), total_count: inWs.length });
+      }
+
+      if (req.method === 'GET' && route === '/guardrails/assignments/keys') {
+        const limit = Number(url.searchParams.get('limit') || 50);
+        const list = state.guardrailAssignments;
+        return send(res, 200, { data: list.slice(offset, offset + limit), total_count: list.length });
+      }
+
+      const assignMatch = route.match(/^\/guardrails\/([^/]+)\/assignments\/keys$/);
+      if (req.method === 'POST' && assignMatch) {
+        const guardrail = state.guardrails.find((g) => g.id === decodeURIComponent(assignMatch[1]));
+        if (!guardrail) return send(res, 404, { error: { code: 404, message: 'Guardrail not found' } });
+        let body;
+        try { body = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: { message: 'Bad JSON' } }); }
+        const hashes = body.key_hashes;
+        if (!Array.isArray(hashes) || !hashes.length || hashes.length > 500) return send(res, 400, { error: { code: 400, message: 'key_hashes: 1 to 500 items' } });
+        let count = 0;
+        for (const h of hashes) {
+          const key = state.keys.find((k) => k.hash === h);
+          if (!key) continue;
+          state.guardrailAssignments = state.guardrailAssignments.filter((a) => a.key_hash !== h); // one guardrail per key
+          state.guardrailAssignments.push({ id: crypto.randomUUID(), key_hash: h, guardrail_id: guardrail.id, key_name: key.name });
+          count++;
+        }
+        return send(res, 200, { assigned_count: count });
       }
 
       if (req.method === 'POST' && route === '/keys') {

@@ -465,6 +465,66 @@ test('web: generate streams progress and the keys show up in /api/keys', async (
   assert.match(rows[0].API_KEY, /^sk-or-v1-/);
 });
 
+test('web: guardrails are listed per program and added to new keys only within their workspace', async () => {
+  const csv = 'email id\nguard.one@test.com\nguard.two@test.com\n';
+  const res = await webFetch('/api/generate', {
+    method: 'POST', body: JSON.stringify({ program: 'swe', region: 'US', cohort: 'guard', limit: '1', csv }),
+  });
+  const created = (await res.text()).trim().split('\n').map((l) => JSON.parse(l)).filter((e) => e.type === 'created');
+  const hashes = created.map((e) => e.hash);
+  assert.strictEqual(hashes.length, 2);
+  assert.ok(hashes.every((h) => typeof h === 'string' && h), 'created events carry the key hash');
+
+  let g = await (await webFetch('/api/guardrails')).json();
+  assert.deepStrictEqual(g.warnings, []);
+  assert.deepStrictEqual(g.programs.swe.map((x) => x.name), ['SWE learners']);
+  assert.deepStrictEqual(g.programs.em.map((x) => [x.name, x.limitUsd, x.resetInterval]), [['EM learners', 10, 'monthly']]);
+  assert.deepStrictEqual(g.programs.sme.map((x) => x.name), ['Staff'], 'SME / Internal uses the Default workspace');
+  assert.deepStrictEqual(g.programs['pm-tpm'], []);
+  assert.ok(!hashes.some((h) => g.assigned[h]), 'new keys start without a guardrail');
+
+  const assign = (body) => webFetch('/api/guardrails/assign', { method: 'POST', body: JSON.stringify(body) });
+  const createsBefore = mock.state.createBodies.length;
+  let r = await assign({ guardrailId: 'gr-em', hashes });
+  assert.strictEqual(r.status, 400);
+  assert.match((await r.json()).error, /isn't in the SWE workspace/);
+  const { rows } = await (await webFetch('/api/keys')).json();
+  const pmHash = rows.find((k) => k.PROGRAM === 'pm-tpm').KEY_HASH;
+  r = await assign({ guardrailId: 'gr-swe', hashes: [...hashes, pmHash] });
+  assert.strictEqual(r.status, 400);
+  assert.match((await r.json()).error, /one program at a time/);
+  r = await assign({ guardrailId: 'gr-swe', hashes: ['hash-manual'] });
+  assert.strictEqual(r.status, 400, 'only keys this app created');
+  assert.strictEqual(mock.state.guardrailAssignments.length, 0, 'refused requests assign nothing');
+
+  r = await assign({ guardrailId: 'gr-swe', hashes });
+  assert.strictEqual(r.status, 200);
+  const result = await r.json();
+  assert.deepStrictEqual([result.program, result.guardrail.name, result.requested, result.assigned], ['swe', 'SWE learners', 2, 2]);
+  assert.deepStrictEqual(mock.state.guardrailAssignments.map((a) => [a.key_hash, a.guardrail_id]).sort(), hashes.map((h) => [h, 'gr-swe']).sort());
+  assert.strictEqual(mock.state.createBodies.length, createsBefore, 'guardrail calls never create keys');
+
+  g = await (await webFetch('/api/guardrails')).json();
+  assert.deepStrictEqual(hashes.map((h) => g.assigned[h].name), ['SWE learners', 'SWE learners']);
+  assert.ok(!JSON.stringify(g).includes('sk-or-'), 'no keys in the guardrails response');
+});
+
+test('guardrails: big selections are sent to OpenRouter in batches of 500', async () => {
+  const { assignGuardrail, ASSIGN_BATCH } = require('../lib/guardrails');
+  const hashes = Array.from({ length: 1201 }, (_, i) => `h${i}`);
+  const calls = [];
+  const client = {
+    resolveWorkspace: async () => ({ id: 'ws-swe' }),
+    listGuardrails: async () => [{ id: 'gr-swe', name: 'SWE learners' }],
+    assignGuardrailKeys: async (id, chunk) => { calls.push(chunk.length); return chunk.length; },
+  };
+  const store = { readAll: async () => hashes.map((h) => ({ KEY_HASH: h, PROGRAM: 'swe' })) };
+  const r = await assignGuardrail({ client, store, guardrailId: 'gr-swe', hashes });
+  assert.strictEqual(ASSIGN_BATCH, 500);
+  assert.deepStrictEqual(calls, [500, 500, 201]);
+  assert.strictEqual(r.assigned, 1201);
+});
+
 test('parseKeyName + chooseSplits find the cohort even when emails contain dashes', () => {
   assert.strictEqual(parseKeyName('someone made this by hand'), null);
   assert.strictEqual(parseKeyName('UK-001-oct-a@x.com'), null);

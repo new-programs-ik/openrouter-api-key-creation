@@ -391,6 +391,13 @@
     <div id="previewArea" class="hidden">
       <div class="stats" id="previewStats"></div>
       <progress id="progress" class="hidden" value="0" max="1"></progress>
+      <div class="sendbar hidden" id="runGuardBar" style="margin-bottom: 12px;">
+        <span id="runGuardText">Add a guardrail to the new keys:</span>
+        <select id="runGuard" aria-label="Guardrail for the new keys"></select>
+        <button class="btn small primary" id="runGuardBtn">Add guardrail</button>
+        <span class="example" id="runGuardNote" style="margin: 0;"></span>
+      </div>
+      <div id="runGuardMsg"></div>
       <div class="tablewrap">
         <table>
           <thead><tr><th>#</th><th>Key name</th><th>Status</th><th>Details</th></tr></thead>
@@ -423,12 +430,18 @@
       <button class="btn small" id="sendTestBtn">Send test email</button>
       <span class="example" id="sendNote" style="margin: 0;"></span>
     </div>
+    <div class="sendbar" id="guardBar" style="margin-top: 8px;">
+      <span>Guardrail for the selected keys:</span>
+      <select id="selGuard" aria-label="Guardrail for the selected keys"></select>
+      <button class="btn small" id="selGuardBtn" disabled>Add guardrail</button>
+      <span class="example" id="guardNote" style="margin: 0;"></span>
+    </div>
     <div id="sendMsg"></div>
     <div class="tablewrap" style="margin-top: 12px;">
       <table>
         <thead><tr>
           <th><input type="checkbox" id="selAll" aria-label="Select all learners shown"></th>
-          <th>#</th><th>Region</th><th>Program</th><th>Cohort</th><th>Name</th><th>Email</th><th>Key email</th><th>API key</th><th>Key name</th>
+          <th>#</th><th>Region</th><th>Program</th><th>Cohort</th><th>Name</th><th>Email</th><th>Key email</th><th>Guardrail</th><th>API key</th><th>Key name</th>
         </tr></thead>
         <tbody id="keysBody"></tbody>
       </table>
@@ -679,7 +692,8 @@ async function preview() {
 }
 
 // One /api/generate call: updates the rows as progress streams in and returns the 'done' event.
-async function generatePart(body, progress) {
+// The hashes of created keys are added to `createdHashes` (for adding a guardrail afterwards).
+async function generatePart(body, progress, createdHashes) {
   const res = await api('/api/generate', { method: 'POST', body: JSON.stringify(body) });
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -694,7 +708,7 @@ async function generatePart(body, progress) {
       if (!line.trim()) continue;
       const e = JSON.parse(line);
       if (e.type === 'processing') setRow(e.serial, 'working', '');
-      else if (e.type === 'created') { setRow(e.serial, 'created', e.maskedKey); progress.value++; }
+      else if (e.type === 'created') { setRow(e.serial, 'created', e.maskedKey); progress.value++; if (e.hash) createdHashes.push(e.hash); }
       else if (e.type === 'skipped') { setRow(e.serial, 'skipped', `already exists as ${e.existing}`); progress.value++; }
       else if (e.type === 'failed') { setRow(e.serial, 'failed', e.message); progress.value++; }
       else if (e.type === 'done') done = e;
@@ -716,11 +730,13 @@ async function generate() {
   const progress = $('progress');
   progress.max = state.preview.rows.length; progress.value = 0; progress.classList.remove('hidden');
   const totals = { created: 0, skipped: 0, failed: 0 };
+  const createdHashes = [];
+  hideRunGuard();
   try {
     // A big list is done in parts: the server stops before its time limit and says where to carry on.
     let done = null;
     for (let part = 1, startAt = 1; ; part++) {
-      done = await generatePart({ ...s, csv: state.csv, startAt }, progress);
+      done = await generatePart({ ...s, csv: state.csv, startAt }, progress, createdHashes);
       totals.created += done.created; totals.skipped += done.skipped; totals.failed += done.failed;
       if (!done.nextSerial) break;
       if (part >= 50) throw new Error('Stopped after 50 parts. Preview and generate again to carry on; created keys are skipped.');
@@ -741,7 +757,123 @@ async function generate() {
     state.busy = false;
     state.previewKey = 'ran'; // running again needs a fresh preview
     refreshControls();
+    // Keys created before an error still get the offer.
+    if (createdHashes.length) showRunGuard(s.program, createdHashes);
     loadKeys();
+    loadGuardrails();
+  }
+}
+
+// ---------- Guardrails ----------
+// OpenRouter doesn't add a workspace's guardrail to new keys, so the page offers it after a run and
+// for keys ticked in the table. state.guard.programs: guardrails per program; .assigned: key hash -> guardrail.
+state.guard = { loaded: false, programs: {}, assigned: {}, error: '' };
+state.run = { program: '', hashes: [] };
+
+async function loadGuardrails() {
+  if (!state.config.keyConfigured) {
+    state.guard = { loaded: false, programs: {}, assigned: {}, error: 'Set OPENROUTER_MANAGEMENT_KEY to manage guardrails.' };
+  } else {
+    try {
+      const data = await (await api('/api/guardrails')).json();
+      state.guard = { loaded: true, programs: data.programs || {}, assigned: data.assigned || {}, error: (data.warnings || []).join(' ') };
+    } catch (err) {
+      state.guard = { loaded: false, programs: {}, assigned: {}, error: `Couldn't load guardrails: ${err.message}` };
+    }
+  }
+  if (state.run.hashes.length) fillGuardSelect($('runGuard'), state.run.program);
+  $('selGuard').dataset.program = ''; // refill for the current selection
+  renderKeys();
+}
+
+function guardHtml(hash) {
+  if (!hash || !state.guard.loaded) return '';
+  const g = state.guard.assigned[hash];
+  return g ? esc(g.name) : '<span class="sent none">None</span>';
+}
+
+const guardLabel = (g) => g.name + (g.limitUsd !== null ? ` ($${g.limitUsd}${g.resetInterval ? ` ${g.resetInterval}` : ''})` : '');
+
+// Fills a <select> with the program's guardrails. Returns how many there are.
+function fillGuardSelect(sel, program) {
+  const list = state.guard.programs[program] || [];
+  const current = sel.value;
+  sel.innerHTML = list.length
+    ? list.map((g) => `<option value="${esc(g.id)}" ${g.id === current ? 'selected' : ''} title="${esc(g.description)}">${esc(guardLabel(g))}</option>`).join('')
+    : '<option value="">No guardrails in this workspace</option>';
+  sel.dataset.program = program;
+  return list.length;
+}
+
+function showRunGuard(program, hashes) {
+  state.run = { program, hashes: [...hashes] };
+  const n = hashes.length;
+  $('runGuardText').textContent = `Add a guardrail to the ${n} new key${n === 1 ? '' : 's'}:`;
+  $('runGuardMsg').innerHTML = '';
+  $('runGuardBar').classList.remove('hidden');
+  updateRunGuard();
+}
+
+function hideRunGuard() {
+  state.run = { program: '', hashes: [] };
+  $('runGuardBar').classList.add('hidden');
+  $('runGuardMsg').innerHTML = '';
+}
+
+function updateRunGuard() {
+  if (!state.run.hashes.length) return;
+  const count = fillGuardSelect($('runGuard'), state.run.program);
+  $('runGuardBtn').disabled = !count || state.busy;
+  $('runGuardNote').textContent = !state.guard.loaded ? (state.guard.error || 'Loading guardrails…')
+    : count ? 'You confirm first.' : `Create a guardrail in the ${programLabel(state.run.program)} workspace on OpenRouter, then click Refresh.`;
+}
+
+function updateGuardBar() {
+  const sel = $('selGuard');
+  const chosen = state.keys.filter((k) => state.selected.has(k.KEY_HASH));
+  const programs = [...new Set(chosen.map((k) => k.PROGRAM))];
+  let count = 0;
+  let note = '';
+  if (!state.guard.loaded) note = state.guard.error || 'Loading guardrails…';
+  else if (!chosen.length) note = 'Tick keys to add a guardrail to them.';
+  else if (programs.length > 1) note = 'Tick keys from one program at a time: each program has its own guardrails.';
+  if (state.guard.loaded && programs.length === 1) {
+    count = sel.dataset.program === programs[0] ? (state.guard.programs[programs[0]] || []).length : fillGuardSelect(sel, programs[0]);
+    if (!count) note = `No guardrails in the ${programLabel(programs[0])} workspace yet.`;
+  } else {
+    sel.innerHTML = '<option value="">Choose keys first</option>';
+    sel.dataset.program = '';
+  }
+  const ready = state.guard.loaded && programs.length === 1 && count > 0;
+  sel.disabled = !ready;
+  $('selGuardBtn').disabled = !ready || state.busy;
+  $('selGuardBtn').textContent = ready ? `Add guardrail to ${chosen.length} key${chosen.length === 1 ? '' : 's'}` : 'Add guardrail';
+  $('guardNote').textContent = note;
+}
+
+async function addGuardrail(guardrailId, hashes, msgEl) {
+  const program = (state.keys.find((k) => k.KEY_HASH === hashes[0]) || {}).PROGRAM || state.run.program;
+  const g = (state.guard.programs[program] || []).find((x) => x.id === guardrailId);
+  if (!g) return;
+  const has = hashes.filter((h) => state.guard.assigned[h] && state.guard.assigned[h].id !== guardrailId).length;
+  if (!confirm(`Add the guardrail "${g.name}" to ${hashes.length} key(s)?`
+    + (has ? `\n\n${has} of them already have a different guardrail. A key can have only one, so it will be replaced.` : ''))) return;
+  state.busy = true; refreshControls(); updateSendBar(); updateRunGuard();
+  msgEl.innerHTML = '<div class="msg info">Adding the guardrail…</div>';
+  try {
+    const r = await (await api('/api/guardrails/assign', { method: 'POST', body: JSON.stringify({ guardrailId, hashes }) })).json();
+    const ok = r.assigned === r.requested;
+    msgEl.innerHTML = `<div class="msg ${ok ? 'ok' : 'warn'}">${esc(ok
+      ? `Guardrail "${r.guardrail.name}" added to ${r.assigned} key(s).`
+      : `Guardrail "${r.guardrail.name}" added to ${r.assigned} of ${r.requested} key(s). OpenRouter didn't accept the rest; check them on openrouter.ai.`)}</div>`;
+    if (msgEl.id === 'sendMsg') state.selected.clear();
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg bad">${esc(err.message)}</div>`;
+  } finally {
+    state.busy = false;
+    refreshControls();
+    await loadGuardrails();
+    updateRunGuard();
   }
 }
 
@@ -770,6 +902,7 @@ function updateSendBar() {
     : (state.config.send && state.config.send.problem) || 'Sending isn\'t set up yet: add MAKE_WEBHOOK_URL (see README).';
   const shown = filteredKeys().filter((k) => k.KEY_HASH);
   $('selAll').checked = shown.length > 0 && shown.every((k) => state.selected.has(k.KEY_HASH));
+  updateGuardBar();
 }
 
 function setSentCell(hash) {
@@ -892,9 +1025,10 @@ function renderKeys() {
       <td>${esc(k.SERIAL)}</td><td>${esc(k.REGION)}</td><td>${esc(k.PROGRAM)}</td><td>${esc(k.COHORT)}</td>
       <td>${esc(k.LEARNER_NAME || '')}</td><td>${esc(k.EMAIL_ID)}</td>
       <td data-sent="${esc(k.KEY_HASH || '')}">${k.KEY_HASH ? sentHtml(k.KEY_HASH) : ''}</td>
+      <td>${guardHtml(k.KEY_HASH)}</td>
       <td class="mono">${esc(mask(k.API_KEY))} <button class="btn small" data-copy="${esc(k.API_KEY)}">Copy</button></td>
       <td class="mono">${esc(k.KEY_NAME)}</td></tr>`).join('')
-    : `<tr><td colspan="10" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
+    : `<tr><td colspan="11" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
   updateSendBar();
 }
 
@@ -910,7 +1044,7 @@ async function loadKeys() {
     fillFilter('fCohort', state.keys.map((k) => k.COHORT), 'All cohorts');
     renderKeys();
   } catch (err) {
-    $('keysBody').innerHTML = `<tr><td colspan="10" class="empty">${esc(err.message)}</td></tr>`;
+    $('keysBody').innerHTML = `<tr><td colspan="11" class="empty">${esc(err.message)}</td></tr>`;
   }
 }
 
@@ -1378,7 +1512,9 @@ function setupUsage() {
   refreshControls();
   $('previewBtn').onclick = preview;
   $('generateBtn').onclick = generate;
-  $('refreshBtn').onclick = loadKeys;
+  $('refreshBtn').onclick = () => { loadKeys(); loadGuardrails(); };
+  $('runGuardBtn').onclick = () => addGuardrail($('runGuard').value, state.run.hashes, $('runGuardMsg'));
+  $('selGuardBtn').onclick = () => addGuardrail($('selGuard').value, [...state.selected], $('sendMsg'));
   $('downloadBtn').onclick = downloadCsv;
   ['fProgram', 'fRegion', 'fCohort', 'fSearch', 'fUnsent'].forEach((id) => $(id).addEventListener('input', renderKeys));
   $('sendBtn').onclick = sendSelected;
@@ -1399,6 +1535,7 @@ function setupUsage() {
     try { await navigator.clipboard.writeText(key); toast('Key copied'); } catch { toast('Copy failed'); }
   });
   loadKeys();
+  loadGuardrails();
   setupUsage();
   if (location.hash === '#usage') showTab('usage');
 })();
