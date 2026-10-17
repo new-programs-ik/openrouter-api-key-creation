@@ -650,7 +650,7 @@ test('an older keys file gets an empty LEARNER_NAME column, after a backup', asy
 });
 
 let sendHashes;
-const MAIL = { subject: 'Your key for Forward Deployed Engineer', course: 'Forward Deployed Engineer' };
+const MAIL = { course: 'Forward Deployed Engineering', subject: 'Forward Deployed Engineering | OpenRouter API | Interview Kickstart' };
 const sendStream = async (body) => {
   const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify({ ...MAIL, ...body }) });
   assert.strictEqual(res.status, 200);
@@ -703,31 +703,34 @@ test('web: sending emails each learner through Make and records the result', asy
   assert.strictEqual(log.length, 4);
 });
 
-test('web: sending needs an email subject and course name, cleaned to one line', async () => {
+test('web: sending needs a course from the list, and the subject is built from it', async () => {
   const callsBefore = mock.state.makeCalls.length;
   for (const [body, error] of [
-    [{ subject: '', course: 'FDE' }, /email subject/],
-    [{ subject: 'Hi', course: '   ' }, /course name/],
-    [{ subject: 'x'.repeat(201), course: 'FDE' }, /too long/],
+    [{}, /Choose the course/],
+    [{ course: 'Forward Deployed Engineer' }, /Unknown course/],
   ]) {
     const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify({ hashes: sendHashes, ...body }) });
     assert.strictEqual(res.status, 400);
     assert.match((await res.json()).error, error);
   }
-  assert.strictEqual(mock.state.makeCalls.length, callsBefore, 'nothing is sent without both');
+  assert.strictEqual(mock.state.makeCalls.length, callsBefore, 'nothing is sent without a valid course');
 
-  const done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, subject: ' Your key\nfor  GenAI ', course: 'Applied\tAgentic AI' }))
+  // Whatever subject the page sends, the server builds it from the course.
+  const done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, course: 'Transformative GenAI', subject: 'something else' }))
     .find((e) => e.type === 'done');
   assert.strictEqual(done.sent, 1);
   const call = mock.state.makeCalls.at(-1);
-  assert.deepStrictEqual([call.subject, call.course], ['Your key for GenAI', 'Applied Agentic AI']);
+  assert.deepStrictEqual([call.course, call.subject], ['Transformative GenAI', 'Transformative GenAI | OpenRouter API | Interview Kickstart']);
 });
 
-test('web: config gives each program a default email subject and course name', async () => {
+test('web: config lists the email courses, the subject pattern and each program\'s course', async () => {
   const config = await (await webFetch('/api/config')).json();
-  const fde = config.programs.find((p) => p.id === 'fde');
-  assert.strictEqual(fde.emailCourse, 'Forward Deployed Engineer');
-  assert.ok(config.programs.every((p) => typeof p.emailSubject === 'string' && p.emailSubject));
+  assert.deepStrictEqual(config.email, {
+    courses: ['Applied Agentic AI', 'Forward Deployed Engineering', 'Transformative GenAI'],
+    subject: '{course} | OpenRouter API | Interview Kickstart',
+  });
+  assert.deepStrictEqual(Object.fromEntries(config.programs.map((p) => [p.id, p.emailCourse])),
+    { swe: 'Applied Agentic AI', 'pm-tpm': 'Applied Agentic AI', em: 'Applied Agentic AI', fde: 'Forward Deployed Engineering', sme: 'Applied Agentic AI' });
 });
 
 test('web: learners already emailed are skipped unless resend is asked for', async () => {

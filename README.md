@@ -450,11 +450,13 @@ The page can email each learner their own key through your Make scenario, after 
 
 1. In **Generated keys**, filter (e.g. by cohort; tick **Not emailed yet** to hide people already done) and tick
    the learners, or tick the box at the top of the table to select everyone shown.
-2. Check **Email subject** and **Course name** below the Send button. They're filled in for the ticked keys'
-   program (e.g. *Applied Agentic AI to Transformative GenAI*, *Forward Deployed Engineer*). Change them for
-   this cohort if needed. The page remembers the last ones you sent for each program (in that browser).
-   The starting values are in `config.js` (`emailSubject` / `emailCourse`).
-3. Click **Send N keys by email**. A summary (how many, which program/cohort, the subject and course) asks you
+2. Check the **Course** below the Send button: **Applied Agentic AI**, **Forward Deployed Engineering** or
+   **Transformative GenAI**. It's picked for the ticked keys' program; change it for this cohort if needed.
+   The **Email subject** follows the course, e.g. *Applied Agentic AI | OpenRouter API | Interview Kickstart*.
+   The page remembers the last course you sent for each program (in that browser). The course list, the
+   subject pattern and each program's starting course are in `config.js` (`EMAIL_COURSES`, `EMAIL_SUBJECT`,
+   `emailCourse`).
+3. Click **Send N keys by email**. A summary (how many, which program/cohort, the course and subject) asks you
    to confirm. Nothing is sent before you click OK.
 4. The page sends the learners one by one and the **Key email** column changes to **Sent ✓**, **Sent to Make**
    (accepted, but the scenario didn't confirm) or **Failed** (hover for the reason). Keep the tab open.
@@ -463,15 +465,14 @@ Learners already emailed are skipped. Selecting only people who were already ema
 their keys **again**. **Send test email** sends one email with a **fake** key to you, to set up and check the
 scenario.
 
-The app sends Make, for each learner: `subject` and `course` (what you typed in the page), `email`, `name`
+The app sends Make, for each learner: `course` (chosen in the page) and `subject` (built from it), `email`, `name`
 (may be empty), `api_key`, `key_name`, `program` (e.g. SWE), `program_id` (e.g. swe), `region`, `cohort`,
 `sent_by` (who clicked Send) and `test` (true only for the test email).
 
 **Using the subject and course name in Make (once).** Open the scenario, then the webhook module →
 **Redetermine data structure** → in the app click **Send test email** (Make now knows `subject` and `course`).
 In **Gmail: Send an email**, set **Subject** to the `subject` field, and in the email text replace the fixed
-course name (e.g. "Applied Agentic AI to Transformative GenAI") with the `course` field. Save. From then on
-you change both in the app, never in Make.
+course name with the `course` field. Save. From then on you choose the course in the app, never in Make.
 
 ### Changing the Make scenario (once)
 

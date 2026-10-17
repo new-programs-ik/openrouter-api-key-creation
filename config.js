@@ -5,23 +5,27 @@ const path = require('path');
 //   workspaceSlug: the workspace's slug on OpenRouter (used to look up its ID)
 //   workspaceEnv:  optional env var holding the workspace ID directly (skips the lookup)
 //   creditLimit:   default USD credits per learner key (can be changed per run); null = no limit
-//   emailSubject / emailCourse: what the page fills in for the key email's subject and course name
-//                  (editable before each send; the page then remembers the last ones used per program)
+//   emailCourse:   the course the page picks for the key email (one of EMAIL_COURSES; can be changed
+//                  before each send, and the page then remembers the last one used per program)
 //   defaultWorkspace: true = the account's Default workspace (found by slug "default", else keys are
 //                  created and listed without a workspace_id, which OpenRouter puts in the Default workspace)
-const AGENTIC_COURSE = 'Applied Agentic AI to Transformative GenAI';
 const PROGRAMS = {
   swe: { label: 'SWE', workspaceSlug: 'agentic-ai-swe', workspaceEnv: 'OR_WS_SWE', creditLimit: 5,
-    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+    emailCourse: 'Applied Agentic AI' },
   'pm-tpm': { label: 'PM / TPM', workspaceSlug: 'agentic-ai-pm-tpm', workspaceEnv: 'OR_WS_PM_TPM', creditLimit: 5,
-    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+    emailCourse: 'Applied Agentic AI' },
   em: { label: 'EM', workspaceSlug: 'agentic-ai-em', workspaceEnv: 'OR_WS_EM', creditLimit: 5,
-    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+    emailCourse: 'Applied Agentic AI' },
   fde: { label: 'FDE Program', workspaceSlug: 'fde-program', workspaceEnv: 'OR_WS_FDE', creditLimit: 5,
-    emailCourse: 'Forward Deployed Engineer', emailSubject: 'Your OpenRouter API key for Forward Deployed Engineer' },
+    emailCourse: 'Forward Deployed Engineering' },
   sme: { label: 'SME / Internal', workspaceSlug: 'default', workspaceEnv: 'OR_WS_SME', creditLimit: 5, defaultWorkspace: true,
-    emailCourse: '', emailSubject: 'Your OpenRouter API key' },
+    emailCourse: 'Applied Agentic AI' },
 };
+
+// Key email: the course is chosen from this list in the page, and the subject is built from it
+// ("{course}" is replaced). Make puts `course` in the email text and `subject` in the subject line.
+const EMAIL_COURSES = ['Applied Agentic AI', 'Forward Deployed Engineering', 'Transformative GenAI'];
+const EMAIL_SUBJECT = '{course} | OpenRouter API | Interview Kickstart';
 
 // First part of every key name: US-001-oct-2026-rahul.k@gmail.com
 const REGIONS = ['US', 'IND'];
@@ -49,6 +53,6 @@ const paths = () => ({
 });
 
 module.exports = {
-  PROGRAMS, REGIONS, CREDIT_LIMIT_CHOICES, MAX_CREDIT_LIMIT, LIMIT_RESET, DELAY_MS,
+  PROGRAMS, REGIONS, EMAIL_COURSES, EMAIL_SUBJECT, CREDIT_LIMIT_CHOICES, MAX_CREDIT_LIMIT, LIMIT_RESET, DELAY_MS,
   ALLOWED_DOMAIN, SESSION_HOURS, RUN_TIME_LIMIT_MS, ROOT, paths,
 };
