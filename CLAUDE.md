@@ -8,7 +8,8 @@ plain language.
 ## How it's used
 
 - **Web UI (main way):** `npm run web` → http://localhost:3000. Pick program, region, cohort and
-  credit limit, upload the CSV, Preview, Generate. The "Generated keys" section lists the output CSV.
+  credit limit, upload the CSV (or switch to "Type emails": comma-separated emails, turned into a one-column
+  `email id` CSV in the page so the server checks them the same way), Preview, Generate. The "Generated keys" section lists the output CSV.
 - **Command line:** `npm run api` asks the same questions in the terminal (or reads env vars
   `PROGRAM`, `REGION`, `COHORT`, `CREDIT_LIMIT`). `npm run dry` shows key names without network calls.
 - **Online (Vercel):** the same page via `api/index.js`, with Google sign-in required and keys saved to private

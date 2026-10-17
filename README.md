@@ -24,7 +24,8 @@ Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerSh
 1. Open https://openrouter-key-generator.vercel.app and click **Sign in with Google**.
 2. Choose the **program**, **region** and type the **cohort** name (e.g. `mid-oct`).
 3. Keep the **$5** credit limit or pick another.
-4. Upload the learners CSV. Not sure of the format? Click **Download the template (learners.csv)** on the page.
+4. Add the learners: upload a CSV, or switch to **Type emails** and paste them separated by commas.
+   Not sure of the CSV format? Click **Download the template (learners.csv)** on the page.
 5. Click **Preview**, check the key names, then **Generate** and keep the tab open until it says *Done*.
 6. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
 
@@ -161,7 +162,10 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
    3. **Cohort**: type it, e.g. `mid-oct`. The page shows what the key names will look like.
    4. **Credit limit per key**: $1, $2, $5, $10, **Other** (type any amount) or **No limit**.
       The program's default ($5) is selected for you. Amounts above $100 are refused, to catch typos.
-   5. **Learners CSV**: choose or drop your file. **Download the template (learners.csv)** gives you the format.
+   5. **Learners**: either **Upload CSV** (choose or drop your file; **Download the template (learners.csv)**
+      gives you the format), or **Type emails** and paste them separated by commas (new lines work too).
+      Typed emails are checked exactly like a CSV and numbered in the order you typed them. Learner names
+      (used in the key email) can only come from a CSV.
 3. Click **Preview**. You'll see every key name and whether it is **New**, **Already exists** or a **Problem**
    (bad or repeated email). Nothing is created yet.
 4. Click **Generate N keys** and confirm. Each row updates as it goes. Keep the tab open until it says *Done*.
