@@ -5,14 +5,22 @@ const path = require('path');
 //   workspaceSlug: the workspace's slug on OpenRouter (used to look up its ID)
 //   workspaceEnv:  optional env var holding the workspace ID directly (skips the lookup)
 //   creditLimit:   default USD credits per learner key (can be changed per run); null = no limit
+//   emailSubject / emailCourse: what the page fills in for the key email's subject and course name
+//                  (editable before each send; the page then remembers the last ones used per program)
 //   defaultWorkspace: true = the account's Default workspace (found by slug "default", else keys are
 //                  created and listed without a workspace_id, which OpenRouter puts in the Default workspace)
+const AGENTIC_COURSE = 'Applied Agentic AI to Transformative GenAI';
 const PROGRAMS = {
-  swe: { label: 'SWE', workspaceSlug: 'agentic-ai-swe', workspaceEnv: 'OR_WS_SWE', creditLimit: 5 },
-  'pm-tpm': { label: 'PM / TPM', workspaceSlug: 'agentic-ai-pm-tpm', workspaceEnv: 'OR_WS_PM_TPM', creditLimit: 5 },
-  em: { label: 'EM', workspaceSlug: 'agentic-ai-em', workspaceEnv: 'OR_WS_EM', creditLimit: 5 },
-  fde: { label: 'FDE Program', workspaceSlug: 'fde-program', workspaceEnv: 'OR_WS_FDE', creditLimit: 5 },
-  sme: { label: 'SME / Internal', workspaceSlug: 'default', workspaceEnv: 'OR_WS_SME', creditLimit: 5, defaultWorkspace: true },
+  swe: { label: 'SWE', workspaceSlug: 'agentic-ai-swe', workspaceEnv: 'OR_WS_SWE', creditLimit: 5,
+    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+  'pm-tpm': { label: 'PM / TPM', workspaceSlug: 'agentic-ai-pm-tpm', workspaceEnv: 'OR_WS_PM_TPM', creditLimit: 5,
+    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+  em: { label: 'EM', workspaceSlug: 'agentic-ai-em', workspaceEnv: 'OR_WS_EM', creditLimit: 5,
+    emailCourse: AGENTIC_COURSE, emailSubject: `Your OpenRouter API key for ${AGENTIC_COURSE}` },
+  fde: { label: 'FDE Program', workspaceSlug: 'fde-program', workspaceEnv: 'OR_WS_FDE', creditLimit: 5,
+    emailCourse: 'Forward Deployed Engineer', emailSubject: 'Your OpenRouter API key for Forward Deployed Engineer' },
+  sme: { label: 'SME / Internal', workspaceSlug: 'default', workspaceEnv: 'OR_WS_SME', creditLimit: 5, defaultWorkspace: true,
+    emailCourse: '', emailSubject: 'Your OpenRouter API key' },
 };
 
 // First part of every key name: US-001-oct-2026-rahul.k@gmail.com

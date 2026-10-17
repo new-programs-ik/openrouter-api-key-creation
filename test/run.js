@@ -650,8 +650,9 @@ test('an older keys file gets an empty LEARNER_NAME column, after a backup', asy
 });
 
 let sendHashes;
+const MAIL = { subject: 'Your key for Forward Deployed Engineer', course: 'Forward Deployed Engineer' };
 const sendStream = async (body) => {
-  const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify(body) });
+  const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify({ ...MAIL, ...body }) });
   assert.strictEqual(res.status, 200);
   return (await res.text()).trim().split('\n').map((l) => JSON.parse(l));
 };
@@ -689,7 +690,8 @@ test('web: sending emails each learner through Make and records the result', asy
   const keyOf = (email) => rows.find((r) => r.EMAIL_ID === email && r.COHORT === 'send-test').API_KEY;
   assert.deepStrictEqual(
     { ...calls[0], sent_by: undefined },
-    { email: 'send.one@test.com', name: 'Asha Rao', api_key: keyOf('send.one@test.com'), key_name: 'US-001-send-test-send.one@test.com',
+    { subject: MAIL.subject, course: MAIL.course,
+      email: 'send.one@test.com', name: 'Asha Rao', api_key: keyOf('send.one@test.com'), key_name: 'US-001-send-test-send.one@test.com',
       program: 'EM', program_id: 'em', region: 'US', cohort: 'send-test', sent_by: undefined, test: false },
   );
   for (const key of mock.state.issuedKeys) assert.ok(!JSON.stringify(events).includes(key), 'full key in the send progress stream');
@@ -699,6 +701,33 @@ test('web: sending emails each learner through Make and records the result', asy
   const log = fs.readFileSync(path.join(tmp, 'sent_keys_log.csv'), 'utf8').split(/\r?\n/).filter(Boolean);
   assert.strictEqual(log[0], 'SENT_AT,KEY_HASH,EMAIL_ID,KEY_NAME,STATUS,MESSAGE,SENT_BY');
   assert.strictEqual(log.length, 4);
+});
+
+test('web: sending needs an email subject and course name, cleaned to one line', async () => {
+  const callsBefore = mock.state.makeCalls.length;
+  for (const [body, error] of [
+    [{ subject: '', course: 'FDE' }, /email subject/],
+    [{ subject: 'Hi', course: '   ' }, /course name/],
+    [{ subject: 'x'.repeat(201), course: 'FDE' }, /too long/],
+  ]) {
+    const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify({ hashes: sendHashes, ...body }) });
+    assert.strictEqual(res.status, 400);
+    assert.match((await res.json()).error, error);
+  }
+  assert.strictEqual(mock.state.makeCalls.length, callsBefore, 'nothing is sent without both');
+
+  const done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, subject: ' Your key\nfor  GenAI ', course: 'Applied\tAgentic AI' }))
+    .find((e) => e.type === 'done');
+  assert.strictEqual(done.sent, 1);
+  const call = mock.state.makeCalls.at(-1);
+  assert.deepStrictEqual([call.subject, call.course], ['Your key for GenAI', 'Applied Agentic AI']);
+});
+
+test('web: config gives each program a default email subject and course name', async () => {
+  const config = await (await webFetch('/api/config')).json();
+  const fde = config.programs.find((p) => p.id === 'fde');
+  assert.strictEqual(fde.emailCourse, 'Forward Deployed Engineer');
+  assert.ok(config.programs.every((p) => typeof p.emailSubject === 'string' && p.emailSubject));
 });
 
 test('web: learners already emailed are skipped unless resend is asked for', async () => {
@@ -713,22 +742,23 @@ test('web: learners already emailed are skipped unless resend is asked for', asy
 
 test('web: a test email goes to the given address with a fake key, and is not logged', async () => {
   const logBefore = fs.readFileSync(path.join(tmp, 'sent_keys_log.csv'), 'utf8');
-  const res = await webFetch('/api/send-test', { method: 'POST', body: JSON.stringify({ email: 'Me@Test.com' }) });
+  const res = await webFetch('/api/send-test', { method: 'POST', body: JSON.stringify({ email: 'Me@Test.com', ...MAIL }) });
   assert.deepStrictEqual(await res.json(), { status: 'sent', email: 'me@test.com' });
   const call = mock.state.makeCalls.at(-1);
-  assert.deepStrictEqual([call.email, call.test, call.name], ['me@test.com', true, 'Test Learner']);
+  assert.deepStrictEqual([call.email, call.test, call.name, call.subject, call.course], ['me@test.com', true, 'Test Learner', MAIL.subject, MAIL.course]);
   assert.match(call.api_key, /TEST-ONLY/);
   assert.strictEqual(fs.readFileSync(path.join(tmp, 'sent_keys_log.csv'), 'utf8'), logBefore);
   assert.strictEqual((await webFetch('/api/send-test', { method: 'POST', body: '{}' })).status, 400);
+  assert.strictEqual((await webFetch('/api/send-test', { method: 'POST', body: JSON.stringify({ email: 'me@test.com' }) })).status, 400, 'subject and course required');
 });
 
 test('sendKeys: a wrong webhook key fails every email, and long sends stop to carry on later', async () => {
   const store = createFileStore({ outputCsv: files.output, logsDir: files.logs, sentCsv: path.join(tmp, 'sent-unit.csv') });
   const settings = { configured: true, url: `http://127.0.0.1:${MOCK_PORT}/make-hook`, apiKey: 'wrong' };
-  const bad = await sendKeys({ store, settings, hashes: sendHashes.slice(0, 1) });
+  const bad = await sendKeys({ store, settings, hashes: sendHashes.slice(0, 1), emailText: MAIL });
   assert.strictEqual(bad.failed, 1);
 
-  const parts = await sendKeys({ store, settings: { ...settings, apiKey: 'make-test-key' }, hashes: sendHashes, resend: true, deadline: Date.now() - 1 });
+  const parts = await sendKeys({ store, settings: { ...settings, apiKey: 'make-test-key' }, hashes: sendHashes, emailText: MAIL, resend: true, deadline: Date.now() - 1 });
   assert.deepStrictEqual([parts.sent, parts.nextIndex], [1, 1], 'one email, then stop and say where to carry on');
 });
 
@@ -959,7 +989,7 @@ test('hosted: signed-in user generates keys into Blob through the Vercel route',
   assert.strictEqual((await fetch(`${base}/api/keys`, { headers: { 'X-Requested-With': 'key-ui' } })).status, 401);
 
   // Sending: the sent log is a private Blob file and records who sent it.
-  const sendRes = await fetch(`${base}/api/send`, { method: 'POST', headers, body: JSON.stringify({ hashes: [rows[0].KEY_HASH] }) });
+  const sendRes = await fetch(`${base}/api/send`, { method: 'POST', headers, body: JSON.stringify({ hashes: [rows[0].KEY_HASH], ...MAIL }) });
   const sendEvents = (await sendRes.text()).trim().split('\n').map((l) => JSON.parse(l));
   assert.strictEqual(sendEvents.find((e) => e.type === 'done').sent, 1);
   assert.strictEqual(mock.state.makeCalls.at(-1).sent_by, 'admin@interviewkickstart.com');
@@ -970,7 +1000,7 @@ test('hosted: signed-in user generates keys into Blob through the Vercel route',
   assert.strictEqual(sent[rows[0].KEY_HASH].by, 'admin@interviewkickstart.com');
 
   // Online, a test email always goes to the signed-in person, whatever address is sent.
-  const t = await fetch(`${base}/api/send-test`, { method: 'POST', headers, body: JSON.stringify({ email: 'someone.else@gmail.com' }) });
+  const t = await fetch(`${base}/api/send-test`, { method: 'POST', headers, body: JSON.stringify({ email: 'someone.else@gmail.com', ...MAIL }) });
   assert.strictEqual((await t.json()).email, 'admin@interviewkickstart.com');
   assert.strictEqual(mock.state.makeCalls.at(-1).email, 'admin@interviewkickstart.com');
 });

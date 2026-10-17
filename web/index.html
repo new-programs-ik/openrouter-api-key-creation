@@ -56,6 +56,8 @@
   .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
   .user form { margin: 0; }
+  .mailbar label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; font-weight: 600; font-size: 13px; }
+  .mailbar input.text { width: 100%; box-sizing: border-box; font-weight: 400; }
   .sendbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
   .sent { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .sent.ok { color: var(--ok); }
@@ -429,6 +431,11 @@
       <button class="btn small primary" id="sendBtn" disabled>Send keys by email</button>
       <button class="btn small" id="sendTestBtn">Send test email</button>
       <span class="example" id="sendNote" style="margin: 0;"></span>
+    </div>
+    <div class="sendbar mailbar" id="mailBar" style="margin-top: 8px;">
+      <label>Email subject <input class="text" id="mailSubject" maxlength="200" autocomplete="off"></label>
+      <label>Course name <input class="text" id="mailCourse" maxlength="150" autocomplete="off" placeholder="e.g. Forward Deployed Engineer"></label>
+      <span class="example" id="mailNote" style="margin: 0;"></span>
     </div>
     <div class="sendbar" id="guardBar" style="margin-top: 8px;">
       <span>Guardrail for the selected keys:</span>
@@ -891,13 +898,50 @@ function sentHtml(hash) {
   return `<span class="sent bad" title="${esc(s.message || '')}">Failed ${esc(shortDate(s.at))}</span>`;
 }
 
+// ---------- Email subject and course name ----------
+// Filled from the selected keys' program: the last ones used for it in this browser, else config.js.
+// Sent to Make as `subject` and `course`, so one scenario works for every program and cohort.
+const MAIL_MEMORY = 'keyEmailText';
+function rememberedMail() {
+  try { return JSON.parse(localStorage.getItem(MAIL_MEMORY) || '{}') || {}; } catch { return {}; }
+}
+function rememberMail(program, text) {
+  try { localStorage.setItem(MAIL_MEMORY, JSON.stringify({ ...rememberedMail(), [program]: text })); } catch { /* not saved; fine */ }
+}
+const mailText = () => ({ subject: $('mailSubject').value.trim(), course: $('mailCourse').value.trim() });
+
+function fillMail(program) {
+  const p = state.config.programs.find((x) => x.id === program);
+  if (!p || $('mailBar').dataset.program === program) return;
+  const saved = rememberedMail()[program] || {};
+  $('mailSubject').value = saved.subject || p.emailSubject || '';
+  $('mailCourse').value = saved.course || p.emailCourse || '';
+  $('mailBar').dataset.program = program;
+}
+
+// The programs of the ticked keys.
+const selectedPrograms = () => [...new Set(state.keys.filter((k) => state.selected.has(k.KEY_HASH)).map((k) => k.PROGRAM))];
+
+function updateMailBar() {
+  const programs = selectedPrograms();
+  if (programs.length === 1) fillMail(programs[0]);
+  else if (!$('mailBar').dataset.program && state.config.programs.length) fillMail(state.config.programs[0].id);
+  const t = mailText();
+  const label = (id) => programLabel(id);
+  $('mailNote').textContent = !t.subject || !t.course ? 'Fill in both: Make puts them in the email.'
+    : programs.length > 1 ? `The ticked keys are from ${programs.map(label).join(', ')}: they all get this subject and course.`
+      : programs.length ? `For ${label(programs[0])}. Change them for this cohort if needed; the page remembers them.` : '';
+}
+
 function updateSendBar() {
   const n = state.selected.size;
   const configured = state.config.send && state.config.send.configured;
+  updateMailBar();
+  const mailReady = Boolean(mailText().subject && mailText().course);
   $('selCount').textContent = n ? `${n} learner${n === 1 ? '' : 's'} selected` : 'No learners selected';
-  $('sendBtn').disabled = !configured || !n || state.busy;
+  $('sendBtn').disabled = !configured || !n || state.busy || !mailReady;
   $('sendBtn').textContent = n ? `Send ${n} key${n === 1 ? '' : 's'} by email` : 'Send keys by email';
-  $('sendTestBtn').disabled = !configured || state.busy;
+  $('sendTestBtn').disabled = !configured || state.busy || !mailReady;
   $('sendNote').textContent = configured ? 'Tick learners (or filter, then tick the box at the top) and send. You confirm before anything is sent.'
     : (state.config.send && state.config.send.problem) || 'Sending isn\'t set up yet: add MAKE_WEBHOOK_URL (see README).';
   const shown = filteredKeys().filter((k) => k.KEY_HASH);
@@ -946,15 +990,19 @@ async function sendSelected() {
   const list = Object.entries(groups).map(([g, n]) => `  ${g}: ${n}`).join('\n');
   const noNames = chosen.filter((k) => !k.LEARNER_NAME).length;
   const nameNote = noNames ? `\n\n${noNames} of them have no name saved; the email will use your Make template's fallback greeting.` : '';
+  const text = mailText();
+  const mailNote = `\n\nSubject: ${text.subject}\nCourse: ${text.course}`;
 
   let resend = false;
   if (fresh === 0) {
-    if (!confirm(`All ${chosen.length} selected learner(s) were already emailed their key.\n\nSend their keys AGAIN?\n\n${list}`)) return;
+    if (!confirm(`All ${chosen.length} selected learner(s) were already emailed their key.\n\nSend their keys AGAIN?\n\n${list}${mailNote}`)) return;
     resend = true;
-  } else if (!confirm(`Email ${fresh} learner(s) their own API key through Make?\n\n${list}${nameNote}`
+  } else if (!confirm(`Email ${fresh} learner(s) their own API key through Make?\n\n${list}${mailNote}${nameNote}`
     + (already.length ? `\n\n${already.length} already emailed will be skipped.` : ''))) {
     return;
   }
+
+  for (const program of selectedPrograms()) rememberMail(program, text);
 
   state.busy = true; updateSendBar(); refreshControls();
   const msg = (kind, text) => { $('sendMsg').innerHTML = `<div class="msg ${kind}">${esc(text)}</div>`; };
@@ -963,7 +1011,7 @@ async function sendSelected() {
   try {
     const hashes = chosen.map((k) => k.KEY_HASH);
     for (let part = 1, startAt = 0; ; part++) {
-      const done = await sendPart({ hashes, resend, startAt });
+      const done = await sendPart({ hashes, resend, startAt, ...text });
       for (const k of Object.keys(totals)) totals[k] += done[k];
       if (done.nextIndex === null || done.nextIndex === undefined) break;
       if (part >= 50) throw new Error('Stopped after 50 parts. Select the learners not emailed yet and send again.');
@@ -994,7 +1042,7 @@ async function sendTestEmail() {
     return;
   }
   try {
-    const r = await (await api('/api/send-test', { method: 'POST', body: JSON.stringify({ email }) })).json();
+    const r = await (await api('/api/send-test', { method: 'POST', body: JSON.stringify({ email, ...mailText() }) })).json();
     $('sendMsg').innerHTML = `<div class="msg ok">${esc(r.status === 'sent'
       ? `Test email sent to ${r.email}.`
       : `Make accepted the test for ${r.email}. Check the scenario's history; add a Webhook response returning {"status":"sent"} to get a confirmation here.`)}</div>`;
@@ -1519,6 +1567,7 @@ function setupUsage() {
   ['fProgram', 'fRegion', 'fCohort', 'fSearch', 'fUnsent'].forEach((id) => $(id).addEventListener('input', renderKeys));
   $('sendBtn').onclick = sendSelected;
   $('sendTestBtn').onclick = sendTestEmail;
+  ['mailSubject', 'mailCourse'].forEach((id) => $(id).addEventListener('input', updateSendBar));
   $('selAll').addEventListener('change', () => {
     for (const k of filteredKeys()) if (k.KEY_HASH) { if ($('selAll').checked) state.selected.add(k.KEY_HASH); else state.selected.delete(k.KEY_HASH); }
     renderKeys();
