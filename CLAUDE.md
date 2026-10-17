@@ -84,7 +84,9 @@ Both front ends call the same `lib/` code; put shared behaviour there, not in an
 
 - Needs a **Management key** (`OPENROUTER_MANAGEMENT_KEY` in `.env`); one key covers all workspaces.
 - `GET /workspaces?limit=&offset=` → `{ data: [{ id, name, slug }] }`. The program's workspace is found by
-  slug from `config.js`, or taken from `OR_WS_SWE` / `OR_WS_PM_TPM` / `OR_WS_EM` / `OR_WS_FDE`.
+  slug from `config.js`, or taken from `OR_WS_SWE` / `OR_WS_PM_TPM` / `OR_WS_EM` / `OR_WS_FDE` / `OR_WS_SME`.
+- `sme` (SME / Internal) has `defaultWorkspace: true`: slug `default` (or `is_default`), else `id: null` and keys are
+  created/listed **without** `workspace_id` (= Default workspace); trends then warn to set `OR_WS_SME`.
 - `GET /keys?workspace_id=&include_disabled=true&offset=`: paginated; without `workspace_id` it only shows the default workspace.
 - `POST /keys` `{ name, workspace_id, limit?, limit_reset? }` → `{ key, data: { hash, ... } }`; the key is returned only once.
 - `PATCH /keys/{hash}` `{ disabled: true }` / `DELETE /keys/{hash}`: for a future "revoke cohort" script (not built).

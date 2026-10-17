@@ -72,6 +72,7 @@ once on each workspace at openrouter.ai, and every learner key is created inside
 | PM / TPM | `agentic-ai-pm-tpm` | $5 |
 | EM | `agentic-ai-em` | $5 |
 | FDE Program | `fde-program` | $5 |
+| SME / Internal | your account's **Default** workspace | $5 |
 
 **There is no workspace per cohort.** A new cohort starts every month, and creating workspaces each time
 would mean setting up guardrails again and again. Instead, cohorts are told apart by the **key name**, so
@@ -116,7 +117,11 @@ The tool needs an OpenRouter **Management key**. A normal API key won't work.
 One Management key covers **all workspaces**. When you choose a program, the tool looks up that program's
 workspace by its slug (the table in section 2) and creates the keys there.
 If a workspace is renamed or its slug changes, either update the slug in `config.js` or put the workspace's
-ID in `.env` (`OR_WS_SWE=…`, `OR_WS_PM_TPM=…`, `OR_WS_EM=…`, `OR_WS_FDE=…`).
+ID in `.env` (`OR_WS_SWE=…`, `OR_WS_PM_TPM=…`, `OR_WS_EM=…`, `OR_WS_FDE=…`, `OR_WS_SME=…`).
+
+**SME / Internal** keys go to the account's **Default** workspace. It needs no setup. The Usage tab
+lists every key in the Default workspace under SME / Internal, including keys made there by hand. If the
+Trends view says it needs the Default workspace's ID, copy that ID from OpenRouter into `OR_WS_SME`.
 
 ---
 
@@ -157,7 +162,7 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
    window open while you use the page. Press **Ctrl+C** in the terminal to stop it.
 
 2. On the page:
-   1. **Program**: SWE, PM / TPM, EM or FDE Program.
+   1. **Program**: SWE, PM / TPM, EM, FDE Program or SME / Internal.
    2. **Region**: US or IND.
    3. **Cohort**: type it, e.g. `mid-oct`. The page shows what the key names will look like.
    4. **Credit limit per key**: $1, $2, $5, $10, **Other** (type any amount) or **No limit**.
@@ -222,7 +227,7 @@ To skip the questions, set the answers before running:
 |---|---|---|
 | `set PROGRAM=swe`<br>`set REGION=US`<br>`set COHORT=mid-oct`<br>`set CREDIT_LIMIT=5`<br>`npm run api` | `$env:PROGRAM="swe"`<br>`$env:REGION="US"`<br>`$env:COHORT="mid-oct"`<br>`$env:CREDIT_LIMIT="5"`<br>`npm run api` | `PROGRAM=swe REGION=US COHORT=mid-oct CREDIT_LIMIT=5 npm run api` |
 
-Program values: `swe`, `pm-tpm`, `em`, `fde`. These settings last until you close that terminal window.
+Program values: `swe`, `pm-tpm`, `em`, `fde`, `sme`. These settings last until you close that terminal window.
 
 ---
 

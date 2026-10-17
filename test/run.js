@@ -295,6 +295,29 @@ test('fde program goes to the fde-program workspace, with CREDIT_LIMIT override'
   assert.strictEqual(mock.state.createBodies.at(-1).limit, 5);
 });
 
+test('sme program goes to the Default workspace', async () => {
+  fs.writeFileSync(files.learners, 'email\nsme.person@test.com\n');
+  const { code, out } = await runScript({ PROGRAM: 'sme' });
+  assert.strictEqual(code, 0, out);
+  assert.strictEqual(mock.state.createBodies.at(-1).workspace_id, 'ws-default');
+  assert.strictEqual(mock.state.createBodies.at(-1).name, 'US-001-mid-oct-sme.person@test.com');
+});
+
+test('sme program without a listed Default workspace creates keys with no workspace_id', async () => {
+  fs.writeFileSync(files.learners, 'email\nsme.two@test.com\n');
+  mock.state.hideDefaultWorkspace = true;
+  const before = mock.state.requests.length;
+  try {
+    const { code, out } = await runScript({ PROGRAM: 'sme' });
+    assert.strictEqual(code, 0, out);
+  } finally {
+    mock.state.hideDefaultWorkspace = false;
+  }
+  assert.ok(!('workspace_id' in mock.state.createBodies.at(-1)), 'workspace_id must be omitted');
+  const list = mock.state.requests.slice(before).find((r) => r.route === '/keys' && r.method === 'GET');
+  assert.ok(list && !('workspace_id' in list.query), 'existing keys are listed without workspace_id');
+});
+
 test('CREDIT_LIMIT=none creates a key without a limit', async () => {
   fs.writeFileSync(files.learners, 'email\nunlimited@test.com\n');
   const { code, out } = await runScript({ CREDIT_LIMIT: 'none' });
@@ -366,7 +389,7 @@ test('web: serves the page and config', async () => {
   assert.strictEqual(page.status, 200);
   assert.match(await page.text(), /OpenRouter Key Generator/);
   const config = await (await webFetch('/api/config')).json();
-  assert.deepStrictEqual(config.programs.map((p) => p.id), ['swe', 'pm-tpm', 'em', 'fde']);
+  assert.deepStrictEqual(config.programs.map((p) => p.id), ['swe', 'pm-tpm', 'em', 'fde', 'sme']);
   assert.deepStrictEqual(config.regions, ['US', 'IND']);
   assert.ok(Array.isArray(config.limitChoices) && config.limitChoices.length > 0);
   assert.strictEqual(config.keyConfigured, true);
@@ -522,11 +545,13 @@ test('web: /api/trends returns monthly and per-model spend for program workspace
     { program: 'swe', key: 'US-004-mid-oct-existing@test.com', month: m1, cost: 1.5, requests: 30, tokens: 9000 },
     { program: 'swe', key: 'US-004-mid-oct-existing@test.com', month: m2, cost: 0.25, requests: 70, tokens: 20000 },
   ], 'counts come back from OpenRouter as strings and must be numbers');
-  assert.ok(!JSON.stringify(data).includes('staff key'), 'the Default workspace is not a program and must be left out');
+  assert.deepStrictEqual(data.monthly.filter((r) => r.program === 'sme').map((r) => [r.key, r.cost]), [['staff key', 99]],
+    'the Default workspace is the SME / Internal program');
+  assert.ok(!data.monthly.some((r) => r.program !== 'sme' && r.key === 'staff key'), 'workspaces stay separate');
   assert.deepStrictEqual(data.models.filter((r) => r.program === 'em').map((r) => [r.model, r.cost]), [['openai/gpt-4o', 2]]);
 
   const queries = mock.state.analyticsQueries.slice(queriesBefore);
-  assert.strictEqual(queries.length, 8, 'two queries per program');
+  assert.strictEqual(queries.length, 10, 'two queries per program');
   for (const q of queries) {
     assert.strictEqual(q.filters[0].field, 'workspace');
     assert.ok(q.limit <= 10000);

@@ -82,7 +82,8 @@ function createMockServer() {
 
       if (req.method === 'GET' && route === '/workspaces') {
         const limit = Number(url.searchParams.get('limit') || 50);
-        return send(res, 200, { data: WORKSPACES.slice(offset, offset + limit), total_count: WORKSPACES.length });
+        const list = state.hideDefaultWorkspace ? WORKSPACES.filter((w) => w.slug !== 'default') : WORKSPACES;
+        return send(res, 200, { data: list.slice(offset, offset + limit), total_count: list.length });
       }
 
       if (req.method === 'GET' && route === '/keys') {
