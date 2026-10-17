@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenRouter Key Generator</title>
 <link rel="icon" href="data:,">
+<script>
+// Theme chosen in the page header: 'light' or 'dark'; nothing saved = follow the computer's setting.
+// Set before the page draws, so it doesn't flash the other theme.
+try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch { /* default */ }
+</script>
 <style>
   /* Interview Kickstart look: Inter, navy text, IK blues, white cards on a light blue-grey page.
      Inter is served from web/fonts (SIL Open Font License, see web/fonts/OFL.txt); no external requests. */
@@ -21,9 +26,11 @@
     --shadow: 0 4px 24px rgba(50, 65, 88, .07);
     --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
     --bar: #3996d2;
+    color-scheme: light;
   }
+  /* Dark: chosen in the header, or "System" while the computer is in dark mode. Keep both blocks the same. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0e1823; --bg-top: #0e1823; --panel: #14202e; --text: #e6edf5; --muted: #9fb0c4; --border: #24354a;
       --accent: #49a9f8; --accent-hover: #6db9fa; --accent-text: #0b1520; --accent-soft: #17324d;
       --brand: #49a9f8; --brand-bright: #49a9f8;
@@ -31,7 +38,18 @@
       --bad: #ff8a80; --bad-soft: #3d1d1b; --info-soft: #1b2a3b;
       --shadow: none;
       --bar: #3996d2;
+      color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1823; --bg-top: #0e1823; --panel: #14202e; --text: #e6edf5; --muted: #9fb0c4; --border: #24354a;
+    --accent: #49a9f8; --accent-hover: #6db9fa; --accent-text: #0b1520; --accent-soft: #17324d;
+    --brand: #49a9f8; --brand-bright: #49a9f8;
+    --ok: #5fd39a; --ok-soft: #173225; --warn: #f2c063; --warn-soft: #3a2f16;
+    --bad: #ff8a80; --bad-soft: #3d1d1b; --info-soft: #1b2a3b;
+    --shadow: none;
+    --bar: #3996d2;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body {
@@ -56,9 +74,19 @@
   .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
   .user form { margin: 0; }
+  /* Progress donuts. Colours: done = --brand, failed = --bad, skipped/unconfirmed = --muted, left = --border.
+     Checked for colour-blind separation in this order (blue, red, grey), so green and red never touch. */
+  .donut { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; }
+  .donut svg { width: 116px; height: 116px; flex: none; }
+  .donut .big { font-size: 22px; font-weight: 650; fill: var(--text); }
+  .donut .small { font-size: 11px; fill: var(--muted); }
+  .donut .legend { display: grid; grid-template-columns: auto auto auto; gap: 3px 12px; font-size: 13px; align-items: center; }
+  .donut .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }
+  .donut .legend .n { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .donut .legend .pct { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .donut .title { font-weight: 600; font-size: 13px; grid-column: 1 / -1; margin-bottom: 2px; }
   .mailbar label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; font-weight: 600; font-size: 13px; }
   .mailbar input.text, .mailbar select { width: 100%; box-sizing: border-box; font-weight: 400; }
-  .mailbar input[readonly] { background: var(--bg); color: var(--muted); }
   .sendbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
   .sent { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .sent.ok { color: var(--ok); }
@@ -81,6 +109,7 @@
   .seg { display: inline-flex; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
   .seg .choice .box { border: 0; border-radius: 0; padding: 8px 22px; font-weight: 600; }
   .seg .choice + .choice .box { border-left: 1.5px solid var(--border); }
+  .seg.theme .choice .box { padding: 4px 12px; font-size: 13px; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   select, input[type=number], input[type=search] { font: inherit; font-size: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
   input[type=number] { width: 100px; }
@@ -181,7 +210,7 @@
   .between { justify-content: space-between; }
   .printonly { display: none; }
   @media print {
-    :root { --bg: #fff; --bg-top: #fff; --panel: #fff; --text: #324158; --muted: #5e6e84; --border: #d5dbe2; --bar: #3996d2; --brand: #3996d2; --info-soft: #f0f3f6; --warn: #8a5a00; --bad: #b42318; --shadow: none; }
+    :root, :root[data-theme] { --bg: #fff; --bg-top: #fff; --panel: #fff; --text: #324158; --muted: #5e6e84; --border: #d5dbe2; --bar: #3996d2; --brand: #3996d2; --info-soft: #f0f3f6; --warn: #8a5a00; --bad: #b42318; --shadow: none; }
     body { font-size: 12px; background: #fff; }
     header .row, .tabbar, .noprint, #createView, .toast { display: none !important; }
     .printonly { display: block; }
@@ -208,6 +237,11 @@
       <h1>OpenRouter Key Generator</h1>
     </div>
     <div class="row">
+      <div class="seg theme" role="radiogroup" aria-label="Theme">
+        <label class="choice" title="Follow the computer's setting"><input type="radio" name="theme" value="system"><span class="box">System</span></label>
+        <label class="choice"><input type="radio" name="theme" value="light"><span class="box">Light</span></label>
+        <label class="choice"><input type="radio" name="theme" value="dark"><span class="box">Dark</span></label>
+      </div>
       <span id="keyStatus" class="pill">Checking…</span>
       <span class="user hidden" id="userBox">
         <span id="userEmail"></span>
@@ -393,6 +427,7 @@
 
     <div id="previewArea" class="hidden">
       <div class="stats" id="previewStats"></div>
+      <div class="donut" id="genDonut"></div>
       <progress id="progress" class="hidden" value="0" max="1"></progress>
       <div class="sendbar hidden" id="runGuardBar" style="margin-bottom: 12px;">
         <span id="runGuardText">Add a guardrail to the new keys:</span>
@@ -427,6 +462,7 @@
       <label class="example" style="margin: 0;"><input type="checkbox" id="fUnsent"> Not emailed yet</label>
       <span class="example" id="keysCount"></span>
     </div>
+    <div class="donut" id="sendDonut"></div>
     <div class="sendbar" id="sendBar">
       <span id="selCount">No learners selected</span>
       <button class="btn small primary" id="sendBtn" disabled>Send keys by email</button>
@@ -435,7 +471,7 @@
     </div>
     <div class="sendbar mailbar" id="mailBar" style="margin-top: 8px;">
       <label>Course <select id="mailCourse"></select></label>
-      <label>Email subject <input class="text" id="mailSubject" readonly tabindex="-1" aria-describedby="mailNote"></label>
+      <label>Email subject <input class="text" id="mailSubject" maxlength="200" autocomplete="off" aria-describedby="mailNote"></label>
       <span class="example" id="mailNote" style="margin: 0;"></span>
     </div>
     <div class="sendbar" id="guardBar" style="margin-top: 8px;">
@@ -661,11 +697,86 @@ function setRow(serial, status, note) {
   const r = state.preview.rows.find((x) => x.serial === serial);
   if (!r) return;
   Object.assign(r, { status, note });
+  renderGenDonut();
   const tr = $(`row-${serial}`);
   if (tr) {
     tr.outerHTML = rowHtml(r);
     $(`row-${serial}`).scrollIntoView({ block: 'nearest' });
   }
+}
+
+// ---------- Progress donuts ----------
+// segments: [{ label, value, color }] in ring order, clockwise from the top. The last one is usually "left".
+function donutHtml({ title, segments, big, small }) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const r = 48;
+  const C = 2 * Math.PI * r;
+  const shown = segments.filter((x) => x.value > 0);
+  const gap = shown.length > 1 ? 2 : 0; // 2px surface gap between segments
+  const pct = (v) => (total ? `${Math.round((v / total) * 100)}%` : '0%');
+  let offset = 0;
+  const arcs = shown.map((x) => {
+    const len = (x.value / total) * C;
+    const arc = `<circle cx="60" cy="60" r="${r}" fill="none" style="stroke:${x.color}" stroke-width="12"
+      stroke-dasharray="${Math.max(len - gap, 0.01)} ${C}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)">
+      <title>${esc(`${x.label}: ${x.value} (${pct(x.value)})`)}</title></circle>`;
+    offset += len;
+    return arc;
+  }).join('');
+  const summary = segments.map((x) => `${x.label} ${x.value}`).join(', ');
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="${esc(`${title}: ${summary}`)}">
+      ${total ? '' : `<circle cx="60" cy="60" r="${r}" fill="none" style="stroke:var(--border)" stroke-width="12"/>`}${arcs}
+      <text x="60" y="60" text-anchor="middle" class="big">${esc(big)}</text>
+      <text x="60" y="77" text-anchor="middle" class="small">${esc(small)}</text>
+    </svg>
+    <div class="legend"><div class="title">${esc(title)}</div>${segments.map((x) => `
+      <span><span class="sw" style="background:${x.color}"></span>${esc(x.label)}</span>
+      <span class="n">${x.value}</span><span class="pct">${pct(x.value)}</span>`).join('')}</div>`;
+}
+
+const DONUT = { done: 'var(--brand)', failed: 'var(--bad)', grey: 'var(--muted)', left: 'var(--border)' };
+
+// Key creation: from the preview rows' statuses, so it updates live as keys are created.
+function renderGenDonut() {
+  const rows = (state.preview && state.preview.rows) || [];
+  const count = (...statuses) => rows.filter((r) => statuses.includes(r.status)).length;
+  const created = count('created');
+  const left = count('new', 'working');
+  $('genDonut').innerHTML = rows.length ? donutHtml({
+    title: 'Keys for this list',
+    big: String(created),
+    small: `of ${state.preview.counts.toCreate} created`,
+    segments: [
+      { label: 'Created', value: created, color: DONUT.done },
+      { label: 'Failed / problem', value: count('failed', 'problem'), color: DONUT.failed },
+      { label: 'Already had a key', value: count('exists', 'skipped'), color: DONUT.grey },
+      { label: 'Left to create', value: left, color: DONUT.left },
+    ],
+  }) : '';
+}
+
+// Sending: for the keys shown in Generated keys (so filter by cohort to see that cohort).
+function renderSendDonut() {
+  const keys = filteredKeys().filter((k) => k.KEY_HASH);
+  const by = { sent: 0, queued: 0, failed: 0, left: 0 };
+  for (const k of keys) {
+    const s = state.sent[k.KEY_HASH];
+    if (s && s.status === 'sent') by.sent++;
+    else if (s && s.status === 'queued') by.queued++;
+    else if (s && s.status === 'failed') by.failed++;
+    else by.left++;
+  }
+  $('sendDonut').innerHTML = keys.length ? donutHtml({
+    title: `Key emails for the ${keys.length === state.keys.length ? '' : 'filtered '}keys shown`,
+    big: String(by.sent + by.queued),
+    small: `of ${keys.length} emailed`,
+    segments: [
+      { label: 'Sent ✓', value: by.sent, color: DONUT.done },
+      { label: 'Failed', value: by.failed, color: DONUT.failed },
+      { label: 'Sent to Make (not confirmed)', value: by.queued, color: DONUT.grey },
+      { label: 'Not sent yet', value: by.left, color: DONUT.left },
+    ],
+  }) : '';
 }
 
 function renderPreview(p) {
@@ -678,6 +789,7 @@ function renderPreview(p) {
     ${p.workspace ? `<span class="pill">Workspace: ${esc(p.workspace)}</span>` : ''}`;
   $('previewBody').innerHTML = p.rows.map(rowHtml).join('') || '<tr><td colspan="4" class="empty">No learners found.</td></tr>';
   $('previewArea').classList.remove('hidden');
+  renderGenDonut();
 }
 
 async function preview() {
@@ -901,7 +1013,8 @@ function sentHtml(hash) {
 
 // ---------- Email course and subject ----------
 // The course is picked from config.js EMAIL_COURSES: the last one used for the ticked keys' program in this
-// browser, else the program's emailCourse. The subject is built from it (the server builds it the same way).
+// browser, else the program's emailCourse. The subject is prefilled from it (EMAIL_SUBJECT) and can be edited;
+// picking another course refills it. An empty subject makes the server use the standard one.
 // Make gets `course` and `subject`, so one scenario works for every program and cohort.
 const MAIL_MEMORY = 'keyEmailText';
 function rememberedMail() {
@@ -910,12 +1023,26 @@ function rememberedMail() {
 function rememberMail(program, text) {
   try { localStorage.setItem(MAIL_MEMORY, JSON.stringify({ ...rememberedMail(), [program]: text })); } catch { /* not saved; fine */ }
 }
-const mailText = () => ({ course: $('mailCourse').value, subject: $('mailSubject').value });
-const showSubject = () => { $('mailSubject').value = state.config.email.subject.replace('{course}', $('mailCourse').value); };
+const mailText = () => ({ course: $('mailCourse').value, subject: $('mailSubject').value.trim() });
+const standardSubject = () => state.config.email.subject.replace('{course}', $('mailCourse').value);
+const showSubject = () => { $('mailSubject').value = standardSubject(); };
+
+// Header theme switch: System (follow the computer), Light or Dark. Remembered in this browser only.
+function setupTheme() {
+  const current = document.documentElement.dataset.theme || 'system';
+  document.querySelector(`input[name=theme][value=${current}]`).checked = true;
+  document.querySelectorAll('input[name=theme]').forEach((el) => el.addEventListener('change', () => {
+    const t = radioValue('theme');
+    if (t === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+    try { if (t === 'system') localStorage.removeItem('theme'); else localStorage.setItem('theme', t); } catch { /* not saved; fine */ }
+  }));
+}
 
 function setupMail() {
   $('mailCourse').innerHTML = state.config.email.courses.map((c) => `<option>${esc(c)}</option>`).join('');
   $('mailCourse').addEventListener('change', () => { showSubject(); updateSendBar(); });
+  $('mailSubject').addEventListener('input', updateSendBar);
+  $('mailNote').addEventListener('click', (e) => { if (e.target.id === 'mailReset') { showSubject(); updateSendBar(); } });
 }
 
 function fillMail(program) {
@@ -937,16 +1064,18 @@ function updateMailBar() {
   else if (!$('mailBar').dataset.program && state.config.programs.length) fillMail(state.config.programs[0].id);
   const t = mailText();
   const label = (id) => programLabel(id);
-  $('mailNote').textContent = !t.course ? 'Choose the course.'
+  const edited = t.subject !== standardSubject();
+  const note = !t.course ? 'Choose the course.' : !t.subject ? 'Type a subject.'
     : programs.length > 1 ? `The ticked keys are from ${programs.map(label).join(', ')}: they all get this course and subject.`
-      : programs.length ? `For ${label(programs[0])}. The subject follows the course; the page remembers your choice.` : '';
+      : programs.length ? `For ${label(programs[0])}. You can edit the subject; picking a course refills it.` : '';
+  $('mailNote').innerHTML = esc(note) + (edited && t.course ? ' <button class="linkbtn" id="mailReset">Use the standard subject</button>' : '');
 }
 
 function updateSendBar() {
   const n = state.selected.size;
   const configured = state.config.send && state.config.send.configured;
   updateMailBar();
-  const mailReady = Boolean(mailText().course);
+  const mailReady = Boolean(mailText().course && mailText().subject);
   $('selCount').textContent = n ? `${n} learner${n === 1 ? '' : 's'} selected` : 'No learners selected';
   $('sendBtn').disabled = !configured || !n || state.busy || !mailReady;
   $('sendBtn').textContent = n ? `Send ${n} key${n === 1 ? '' : 's'} by email` : 'Send keys by email';
@@ -961,6 +1090,7 @@ function updateSendBar() {
 function setSentCell(hash) {
   const cell = document.querySelector(`#keysBody td[data-sent="${CSS.escape(hash)}"]`);
   if (cell) cell.innerHTML = sentHtml(hash);
+  renderSendDonut();
 }
 
 // One /api/send call; updates rows as events stream in and returns the 'done' event.
@@ -1020,7 +1150,7 @@ async function sendSelected() {
   try {
     const hashes = chosen.map((k) => k.KEY_HASH);
     for (let part = 1, startAt = 0; ; part++) {
-      const done = await sendPart({ hashes, resend, startAt, course: text.course });
+      const done = await sendPart({ hashes, resend, startAt, course: text.course, subject: text.subject });
       for (const k of Object.keys(totals)) totals[k] += done[k];
       if (done.nextIndex === null || done.nextIndex === undefined) break;
       if (part >= 50) throw new Error('Stopped after 50 parts. Select the learners not emailed yet and send again.');
@@ -1051,7 +1181,7 @@ async function sendTestEmail() {
     return;
   }
   try {
-    const r = await (await api('/api/send-test', { method: 'POST', body: JSON.stringify({ email, course: mailText().course }) })).json();
+    const r = await (await api('/api/send-test', { method: 'POST', body: JSON.stringify({ email, ...mailText() }) })).json();
     $('sendMsg').innerHTML = `<div class="msg ok">${esc(r.status === 'sent'
       ? `Test email sent to ${r.email}.`
       : `Make accepted the test for ${r.email}. Check the scenario's history; add a Webhook response returning {"status":"sent"} to get a confirmation here.`)}</div>`;
@@ -1087,6 +1217,7 @@ function renderKeys() {
       <td class="mono">${esc(k.KEY_NAME)}</td></tr>`).join('')
     : `<tr><td colspan="11" class="empty">${state.keys.length ? 'No keys match the filters.' : 'No keys generated yet.'}</td></tr>`;
   updateSendBar();
+  renderSendDonut();
 }
 
 async function loadKeys() {
@@ -1557,6 +1688,7 @@ function setupUsage() {
 }
 
 (async () => {
+  setupTheme();
   try {
     state.config = await (await api('/api/config')).json();
   } catch (err) {

@@ -1,8 +1,9 @@
 # OpenRouter Key Generator
 
 Creates one OpenRouter API key per learner from a list of email addresses, puts each key in the
-right workspace with a spending limit, and keeps a record of every key created. After you approve it, it
-can also email each learner their own key through the team's Make scenario (section 15).
+right workspace with a spending limit, adds the workspace's guardrail, and keeps a record of every key
+created. After you approve it, it can also email each learner their own key through the team's Make
+scenario (section 15). Donut charts show how many keys are created and emailed, and how many are left.
 
 You can use it three ways:
 
@@ -30,6 +31,8 @@ Commands below are given for **Windows Command Prompt (CMD)**, **Windows PowerSh
 6. Pick the program's guardrail in **Add a guardrail to the new keys** and click **Add guardrail**
    (OpenRouter doesn't add it by itself).
 7. Find the keys under **Generated keys**: filter, **Copy** one, or **Download CSV**.
+8. To email the keys: filter by cohort, tick the learners, check the **Course** and **Email subject**, and click
+   **Send keys by email** (section 15). The donut above the button shows how many are emailed and left.
 
 The rest of this file explains the details and how to run it on your own computer.
 
@@ -143,6 +146,8 @@ priya.s@outlook.com
 - Optional **`name`** column (or `learner name` / `full name`): saved with the key and used to greet the
   learner in the key email (section 15). It is not part of the key name.
 - Use **one CSV per program** per run.
+- No CSV? On the page, choose **Type emails** and paste the emails separated by commas (new lines work too).
+  They're checked the same way. Learner names can only come from a CSV.
 - Blank rows are ignored. Invalid emails and repeated emails are reported (and logged) but don't stop the run.
 
 On your computer you can also save it as `learners.csv` in this folder; the local page then offers
@@ -176,6 +181,8 @@ Online, just open https://openrouter-key-generator.vercel.app and sign in. On yo
 3. Click **Preview**. You'll see every key name and whether it is **New**, **Already exists** or a **Problem**
    (bad or repeated email). Nothing is created yet.
 4. Click **Generate N keys** and confirm. Each row updates as it goes. Keep the tab open until it says *Done*.
+   A donut chart above the list shows **Created**, **Failed / problem**, **Already had a key** and **Left to create**,
+   with counts, and fills in live during the run, so you don't have to count rows.
 5. **Add the guardrail.** OpenRouter does **not** put a workspace's guardrail on new keys by itself. After the
    run, a bar appears: **Add a guardrail to the N new keys**. It lists the guardrails in that program's
    workspace. Pick one, click **Add guardrail** and confirm. (No guardrails listed? Create one in that workspace
@@ -215,6 +222,11 @@ model figures come from OpenRouter's analytics and may lag a few minutes behind 
 named by this tool are grouped as "(other keys)"; staff keys in OpenRouter's Default workspace are not included.
 
 ---
+
+### Light and dark theme
+
+The switch at the top right of the page picks **System** (follow your computer's setting), **Light** or **Dark**.
+Each browser remembers its own choice, and the sign-in page uses it too.
 
 ## 7. Creating keys from the command line
 
@@ -262,14 +274,18 @@ Program values: `swe`, `pm-tpm`, `em`, `fde`, `sme`. These settings last until y
 
 ## 9. Every new cohort
 
-1. Prepare one CSV per program (SWE, PM/TPM, EM, FDE) with an `email id` column.
+1. Prepare one CSV per program (SWE, PM/TPM, EM, FDE, SME / Internal) with an `email id` column, or have the
+   emails ready to paste into **Type emails**.
 2. Open https://openrouter-key-generator.vercel.app (or run `npm run web`).
 3. For each program: choose the program, region and cohort name (e.g. `early-nov`), choose the limit,
-   upload that program's CSV, **Preview**, then **Generate**, then **Add guardrail** for the new keys.
+   add that program's learners, **Preview**, then **Generate**, then **Add guardrail** for the new keys.
+   The donut above the list shows created / left while it runs.
 4. Check the summary. If anything failed, read the message on the page (details: Vercel **Logs** online,
    `logs/errors.log` on your computer), fix the CSV and run again. Learners that already have a key are skipped.
-5. Email each learner their key: filter **Generated keys** by cohort, tick the learners and click **Send keys by email**
-   (section 15). Or copy keys one by one and share them privately.
+5. Email each learner their key: filter **Generated keys** by cohort, tick the learners, check the **Course**
+   (Applied Agentic AI, Forward Deployed Engineering or Transformative GenAI) and **Email subject**, and click
+   **Send keys by email** (section 15). The donut shows emailed / left for the keys shown. Or copy keys one by
+   one and share them privately.
 
 Use **one place** per cohort, online or your computer, not both: each keeps its own list of keys
 (OpenRouter still prevents duplicates either way).
@@ -288,6 +304,8 @@ Open `config.js` in a text editor:
 - **Highest allowed limit**: `MAX_CREDIT_LIMIT` (default `100`).
 - **Monthly/weekly/daily limit reset**: `LIMIT_RESET` (default `null` = never resets).
 - **Workspace slugs** or a **new program**: add or edit an entry in `PROGRAMS`.
+- **Key email courses**: `EMAIL_COURSES` (the Course list on the page), `EMAIL_SUBJECT` (the standard subject;
+  `{course}` is replaced by the chosen course) and each program's `emailCourse` (the course picked for it).
 
 Restart `npm run web` after changing `config.js`. For the online site, the change must be pushed to GitHub
 and redeployed (section 14, *Updating the site*).
@@ -346,6 +364,13 @@ store online.
 | `Make reported a failure: …` | The scenario replied `{"status":"failed"}`. Check the scenario's **History** in Make for the reason. |
 | Learner shows **Sent to Make**, not **Sent ✓** | Make accepted it but didn't confirm: the scenario has no **Webhook response** module (section 15, step 6), or the scenario is **OFF** (Make holds the email until it's turned on). Check in Make or Gmail that the email went out. |
 | "Email … but the record could not be saved. Stopped" | The email may have gone out but isn't recorded. Check Gmail's **Sent** folder for that learner before sending again; close `sent_keys_log.csv` if it's open in Excel. |
+| "No guardrails in this workspace" | That program's workspace has no guardrail yet. Create one at https://openrouter.ai in that workspace, then click **Refresh**. |
+| `That guardrail isn't in the … workspace` | The guardrail belongs to another program. Pick one listed for the keys' program. |
+| `Choose keys from one program at a time` | Each program has its own guardrails. Filter by program, tick only those keys, and add the guardrail; repeat per program. |
+| `… of the chosen key(s) weren't created by this app` | Guardrails can only be added here to keys in **Generated keys**. Add others on https://openrouter.ai. |
+| Usage tab: "SME / Internal: trends need the Default workspace's ID" | Copy the Default workspace's ID from OpenRouter into `OR_WS_SME` (`.env` or Vercel settings), then restart / redeploy. |
+| `Choose the course for the email` / `Unknown course "…"` | Pick a course from the **Course** list. If the page was open during an update, reload it. |
+| `The email subject is too long` | Keep the subject under 200 characters, or click **Use the standard subject**. |
 | `'npm' is not recognized` | Node.js isn't installed, or the terminal was opened before installing it. Install Node.js and open a new terminal. |
 
 ---
@@ -452,8 +477,9 @@ The page can email each learner their own key through your Make scenario, after 
    the learners, or tick the box at the top of the table to select everyone shown.
 2. Check the **Course** below the Send button: **Applied Agentic AI**, **Forward Deployed Engineering** or
    **Transformative GenAI**. It's picked for the ticked keys' program; change it for this cohort if needed.
-   The **Email subject** follows the course, e.g. *Applied Agentic AI | OpenRouter API | Interview Kickstart*.
-   The page remembers the last course you sent for each program (in that browser). The course list, the
+   The **Email subject** is filled in from the course, e.g. *Applied Agentic AI | OpenRouter API | Interview
+   Kickstart*. You can edit it (e.g. add the cohort); picking another course refills it, and **Use the standard
+   subject** puts it back. The page remembers the last course you sent for each program (in that browser). The course list, the
    subject pattern and each program's starting course are in `config.js` (`EMAIL_COURSES`, `EMAIL_SUBJECT`,
    `emailCourse`).
 3. Click **Send N keys by email**. A summary (how many, which program/cohort, the course and subject) asks you
@@ -461,11 +487,14 @@ The page can email each learner their own key through your Make scenario, after 
 4. The page sends the learners one by one and the **Key email** column changes to **Sent ✓**, **Sent to Make**
    (accepted, but the scenario didn't confirm) or **Failed** (hover for the reason). Keep the tab open.
 
+The donut chart above the Send button counts the keys **shown in the table**: **Sent ✓**, **Failed**, **Sent to Make**
+and **Not sent yet**. Filter by cohort to see how far that cohort is; it updates live while emails go out.
+
 Learners already emailed are skipped. Selecting only people who were already emailed asks whether to send
 their keys **again**. **Send test email** sends one email with a **fake** key to you, to set up and check the
 scenario.
 
-The app sends Make, for each learner: `course` (chosen in the page) and `subject` (built from it), `email`, `name`
+The app sends Make, for each learner: `course` (chosen in the page) and `subject` (as shown in the page), `email`, `name`
 (may be empty), `api_key`, `key_name`, `program` (e.g. SWE), `program_id` (e.g. swe), `region`, `cohort`,
 `sent_by` (who clicked Send) and `test` (true only for the test email).
 

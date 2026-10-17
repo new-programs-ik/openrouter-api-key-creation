@@ -703,11 +703,12 @@ test('web: sending emails each learner through Make and records the result', asy
   assert.strictEqual(log.length, 4);
 });
 
-test('web: sending needs a course from the list, and the subject is built from it', async () => {
+test('web: sending needs a course from the list; the subject is the edited one, else the standard one', async () => {
   const callsBefore = mock.state.makeCalls.length;
   for (const [body, error] of [
     [{}, /Choose the course/],
     [{ course: 'Forward Deployed Engineer' }, /Unknown course/],
+    [{ course: 'Transformative GenAI', subject: 'x'.repeat(201) }, /subject is too long/],
   ]) {
     const res = await webFetch('/api/send', { method: 'POST', body: JSON.stringify({ hashes: sendHashes, ...body }) });
     assert.strictEqual(res.status, 400);
@@ -715,12 +716,30 @@ test('web: sending needs a course from the list, and the subject is built from i
   }
   assert.strictEqual(mock.state.makeCalls.length, callsBefore, 'nothing is sent without a valid course');
 
-  // Whatever subject the page sends, the server builds it from the course.
-  const done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, course: 'Transformative GenAI', subject: 'something else' }))
+  // An edited subject is sent as typed (cleaned to one line).
+  let done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, course: 'Transformative GenAI', subject: ' Transformative GenAI\n| Mid-Oct  cohort ' }))
     .find((e) => e.type === 'done');
   assert.strictEqual(done.sent, 1);
-  const call = mock.state.makeCalls.at(-1);
-  assert.deepStrictEqual([call.course, call.subject], ['Transformative GenAI', 'Transformative GenAI | OpenRouter API | Interview Kickstart']);
+  let call = mock.state.makeCalls.at(-1);
+  assert.deepStrictEqual([call.course, call.subject], ['Transformative GenAI', 'Transformative GenAI | Mid-Oct cohort']);
+
+  // An empty subject falls back to the standard one for the course.
+  done = (await sendStream({ hashes: sendHashes.slice(0, 1), resend: true, course: 'Transformative GenAI', subject: '  ' }))
+    .find((e) => e.type === 'done');
+  assert.strictEqual(done.sent, 1);
+  call = mock.state.makeCalls.at(-1);
+  assert.strictEqual(call.subject, 'Transformative GenAI | OpenRouter API | Interview Kickstart');
+});
+
+test('web: both pages have a light and a dark theme, and the theme is set before the page draws', async () => {
+  for (const file of ['index.html', 'login.html']) {
+    const page = fs.readFileSync(path.join(ROOT, 'web', file), 'utf8');
+    assert.match(page, /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\)/, `${file}: system dark unless Light is chosen`);
+    assert.match(page, /:root\[data-theme="dark"\] \{/, `${file}: Dark chosen`);
+    assert.ok(page.indexOf("localStorage.getItem('theme')") < page.indexOf('<style>'), `${file}: theme applied before the styles`);
+  }
+  const index = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
+  for (const v of ['system', 'light', 'dark']) assert.match(index, new RegExp(`name="theme" value="${v}"`));
 });
 
 test('web: config lists the email courses, the subject pattern and each program\'s course', async () => {

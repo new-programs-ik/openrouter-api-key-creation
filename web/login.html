@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in · OpenRouter Key Generator</title>
 <link rel="icon" href="data:,">
+<script>
+// Theme chosen in the page header: 'light' or 'dark'; nothing saved = follow the computer's setting.
+// Set before the page draws, so it doesn't flash the other theme.
+try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch { /* default */ }
+</script>
 <style>
   /* Same Interview Kickstart look as index.html. */
   @font-face {
@@ -15,13 +20,22 @@
     --bg: #f3f7fb; --bg-top: #e8f3fe; --panel: #ffffff; --text: #324158; --muted: #5e6e84; --border: #e3e7ec;
     --accent: #1769b8; --accent-hover: #135aa0; --accent-text: #ffffff; --brand-bright: #49a9f8;
     --bad: #b42318; --bad-soft: #fde7e5; --shadow: 0 8px 32px rgba(50, 65, 88, .10);
+    color-scheme: light;
   }
+  /* Dark: the theme chosen in the app, or the computer's setting. Keep both blocks the same. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0e1823; --bg-top: #0e1823; --panel: #14202e; --text: #e6edf5; --muted: #9fb0c4; --border: #24354a;
       --accent: #49a9f8; --accent-hover: #6db9fa; --accent-text: #0b1520; --brand-bright: #49a9f8;
       --bad: #ff8a80; --bad-soft: #3d1d1b; --shadow: none;
+      color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1823; --bg-top: #0e1823; --panel: #14202e; --text: #e6edf5; --muted: #9fb0c4; --border: #24354a;
+    --accent: #49a9f8; --accent-hover: #6db9fa; --accent-text: #0b1520; --brand-bright: #49a9f8;
+    --bad: #ff8a80; --bad-soft: #3d1d1b; --shadow: none;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body {

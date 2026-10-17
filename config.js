@@ -22,8 +22,9 @@ const PROGRAMS = {
     emailCourse: 'Applied Agentic AI' },
 };
 
-// Key email: the course is chosen from this list in the page, and the subject is built from it
-// ("{course}" is replaced). Make puts `course` in the email text and `subject` in the subject line.
+// Key email: the course is chosen from this list in the page, and the subject is prefilled from EMAIL_SUBJECT
+// ("{course}" is replaced; it can be edited before sending). Make puts `course` in the email text and
+// `subject` in the subject line.
 const EMAIL_COURSES = ['Applied Agentic AI', 'Forward Deployed Engineering', 'Transformative GenAI'];
 const EMAIL_SUBJECT = '{course} | OpenRouter API | Interview Kickstart';
 
